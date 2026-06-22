@@ -55,6 +55,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
   const [fromIdx, setFromIdx] = useState(0);
   const [toIdx, setToIdx] = useState(19);
   const [batchCount, setBatchCount] = useState(5);
+  const [replaceTeamId, setReplaceTeamId] = useState<number | undefined>(undefined);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
 
   useEffect(() => {
@@ -270,6 +271,72 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
         } else {
           toast({
             title: "Failed",
+            description: data?.message || "Something went wrong",
+            variant: "destructive",
+          });
+        }
+      }
+    } finally {
+      setTransferring(false);
+    }
+  };
+
+  const replaceTeams = async () => {
+    if (!currentAccount) {
+      toast({
+        title: "Account not linked",
+        description: `Please link your ${currentPlatform.name} account first`,
+        variant: "destructive",
+      });
+      router.push("/fantasy");
+      return;
+    }
+    if (!replaceTeamId) {
+      toast({
+        title: "Team ID required",
+        description: "Enter the existing team ID to replace",
+        variant: "destructive",
+      });
+      return;
+    }
+    setTransferring(true);
+    setTransferred([]);
+    setFailedTeams([]);
+    try {
+      const stored = getTeams(matchId);
+      const storedTeams = stored?.teams || [];
+      const res = await fetch("/api/transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          matchId,
+          fantasyApp: selectedPlatform,
+          action: "replace",
+          batchCount,
+          replaceTeamId,
+          teams: storedTeams.slice(0, batchCount),
+        }),
+      });
+      const data = await res.json();
+      if (data?.status === "success") {
+        setTransferred((data.teams || []).map((t: any) => t.team_number));
+        setFailedTeams(data.failed || []);
+        if (data.hash) setHash(data.hash);
+        toast({
+          title: "Replace complete",
+          description: data.message,
+        });
+      } else {
+        if (data?.code === "TOKEN_EXPIRED" || data?.code === "NOT_LINKED") {
+          toast({
+            title: "Re-link required",
+            description: data.message,
+            variant: "destructive",
+          });
+          router.push("/fantasy");
+        } else {
+          toast({
+            title: "Replace failed",
             description: data?.message || "Something went wrong",
             variant: "destructive",
           });
@@ -625,6 +692,66 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
             <Trophy size={14} />
             Join All
           </button>
+          <button
+            onClick={replaceTeams}
+            disabled={transferring || !currentAccount || totalTeams === 0 || !replaceTeamId}
+            style={{
+              flex: 1,
+              padding: "12px",
+              border: "1px solid #f0ad4e",
+              background: "#fff",
+              color: "#f0ad4e",
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              cursor: transferring || !currentAccount || totalTeams === 0 || !replaceTeamId ? "not-allowed" : "pointer",
+              opacity: transferring || !currentAccount || totalTeams === 0 || !replaceTeamId ? 0.6 : 1,
+            }}
+          >
+            <RefreshCw size={14} />
+            Replace
+          </button>
+        </div>
+
+        {/* Replace team ID input */}
+        <div
+          style={{
+            background: "#fff8e1",
+            border: "1px solid #ffc107",
+            borderRadius: 6,
+            padding: 10,
+            marginBottom: 12,
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#856404", marginBottom: 6 }}>
+            Replace Existing Team (Edit)
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              type="number"
+              value={replaceTeamId || ""}
+              onChange={(e) =>
+                setReplaceTeamId(
+                  e.target.value ? parseInt(e.target.value, 10) : undefined
+                )
+              }
+              placeholder="Existing team ID to replace"
+              style={{
+                flex: 1,
+                padding: "8px 10px",
+                border: "1px solid #ddd",
+                borderRadius: 4,
+                fontSize: 13,
+              }}
+            />
+            <span style={{ fontSize: 10, color: "#856404" }}>
+              {replaceTeamId ? `Will replace #${replaceTeamId}` : "Enter team ID"}
+            </span>
+          </div>
         </div>
       </div>
 

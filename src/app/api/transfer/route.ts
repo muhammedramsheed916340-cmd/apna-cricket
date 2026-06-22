@@ -13,32 +13,68 @@ const PLATFORM_LIMITS: Record<string, number> = {
 
 // Real fantasy platform transfer endpoints per app slug.
 // Matches the ORIGINAL teamgeneration.in source:
-//   - ALL platforms use /api/fantasy/add-team as the primary endpoint
-//   - Dream11 also has /api/classic/dream11/addteam as a fallback
-//   - My11Circle and Jumbo use ONLY /api/fantasy/add-team (NOT the dream11 endpoint)
-const PLATFORM_ENDPOINTS: Record<string, string[]> = {
-  dream11: ["/api/fantasy/add-team", "/api/classic/dream11/addteam"],
-  my11circle: ["/api/fantasy/add-team"],
-  jumbo: ["/api/fantasy/add-team"],
-  vision11: ["/api/fantasy/add-team"],
-  myteam11: ["/api/fantasy/add-team"],
+//   - ALL platforms use /api/fantasy/add-team as primary, /api/fantasy/edit-team for replace
+//   - Dream11 also has /api/classic/dream11/addteam as a fallback for add
+const PLATFORM_ENDPOINTS: Record<string, { add: string[]; edit: string[] }> = {
+  dream11: {
+    add: ["/api/fantasy/add-team", "/api/classic/dream11/addteam"],
+    edit: ["/api/fantasy/edit-team"],
+  },
+  my11circle: {
+    add: ["/api/fantasy/add-team"],
+    edit: ["/api/fantasy/edit-team"],
+  },
+  jumbo: {
+    add: ["/api/fantasy/add-team"],
+    edit: ["/api/fantasy/edit-team"],
+  },
+  vision11: {
+    add: ["/api/fantasy/add-team"],
+    edit: ["/api/fantasy/edit-team"],
+  },
+  myteam11: {
+    add: ["/api/fantasy/add-team"],
+    edit: ["/api/fantasy/edit-team"],
+  },
 };
 
-const DEFAULT_ENDPOINTS = ["/api/fantasy/add-team"];
+const DEFAULT_ENDPOINTS = {
+  add: ["/api/fantasy/add-team"],
+  edit: ["/api/fantasy/edit-team"],
+};
 
 interface TransferReq {
   matchId?: string;
   fantasyApp?: "dream11" | "my11circle" | "jumbo";
-  teams?: {
-    team_number: number;
-    players?: any[];
-    captain?: any;
-    vicecaptain?: any;
-  }[];
-  action?: "single" | "all" | "bulk" | "join-contests";
+  teams?: any[];
+  action?: "single" | "all" | "bulk" | "join-contests" | "replace";
   fromIdx?: number;
   toIdx?: number;
   batchCount?: number;
+  replaceTeamId?: number; // for replace action: the existing team ID to replace
+}
+
+// Check if a backend response is a confirmed token expiry
+function isTokenExpired(errorMsg: string, data: any): boolean {
+  const lower = (errorMsg || "").toLowerCase();
+  const confirmedErrors = [
+    "invalid token",
+    "token expired",
+    "session expired",
+    "auth token invalid",
+    "login required",
+    "not authenticated",
+    "expired token",
+    "invalid or expired",
+    "proxy returned 400",
+    "proxy returned 401",
+    "proxy returned 403",
+  ];
+  for (const c of confirmedErrors) {
+    if (lower.includes(c)) return true;
+  }
+  if (data?.validToken === false && data?.status === "fail") return true;
+  return false;
 }
 
 export async function POST(req: Request) {
@@ -52,6 +88,7 @@ export async function POST(req: Request) {
       fromIdx,
       toIdx,
       batchCount,
+      replaceTeamId,
     } = body;
 
     if (!matchId) {
@@ -61,7 +98,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verify the fantasy account is linked (real authToken from OTP login)
+    // Verify the fantasy account is linked
     const store = await cookies();
     const raw = store.get(`tg_fantasy_${fantasyApp}`)?.value;
     if (!raw) {
@@ -99,7 +136,7 @@ export async function POST(req: Request) {
 
     const limit = PLATFORM_LIMITS[fantasyApp] || 40;
 
-    // Determine the team range to transfer
+    // Determine the team range
     let startIdx = 0;
     let endIdx = 0;
     let teamList: number[] = [];
@@ -124,7 +161,7 @@ export async function POST(req: Request) {
         );
       }
       for (let i = startIdx; i <= endIdx; i++) teamList.push(i + 1);
-    } else if (action === "single") {
+    } else if (action === "single" || action === "replace") {
       teamList = teams.map((t) => t.team_number);
     } else {
       teamList =
@@ -142,33 +179,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Verify the auth token is still valid with the real backend
-    const verifyRes = await fetch(`${BACKEND}/api/fantasy/auth/verify`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Origin: "https://teamgeneration.in",
-        Referer: "https://teamgeneration.in/",
-      },
-      body: JSON.stringify({ fantasyApp, authToken }),
-      cache: "no-store",
-    });
-    const verifyData = await verifyRes.json().catch(() => ({}));
-
-    // If token is invalid/expired, return a clear re-link message
-    if (verifyData?.validToken === false || verifyRes.status !== 200) {
-      return NextResponse.json(
-        {
-          status: "error",
-          message: `${fantasyApp} session expired. Please re-link your account via OTP.`,
-          code: "TOKEN_EXPIRED",
-        },
-        { status: 401 }
-      );
-    }
-
-    // Fetch stored generated teams for this match so we can send REAL team data
-    // (players, captain, vice-captain) to the fantasy platform backend.
+    // Fetch stored generated teams
     const storedRaw = store.get(`tg_teams_${matchId}`)?.value;
     let storedTeams: any[] = [];
     if (storedRaw) {
@@ -179,24 +190,20 @@ export async function POST(req: Request) {
         /* ignore */
       }
     }
-    // Merge: prefer passed-in teams, fall back to stored teams
     const allTeamsMap = new Map<number, any>();
     for (const t of storedTeams) allTeamsMap.set(t.team_number, t);
     for (const t of teams) allTeamsMap.set(t.team_number, t);
 
-    // Call the real transfer endpoint for each team.
-    // Tries each platform-specific endpoint in order (primary first, fallback second).
-    const endpoints = PLATFORM_ENDPOINTS[fantasyApp] || DEFAULT_ENDPOINTS;
-    const transferred: { team_number: number; status: string; contestId?: string }[] = [];
+    const config = PLATFORM_ENDPOINTS[fantasyApp] || DEFAULT_ENDPOINTS;
+    const isReplace = action === "replace";
+    const endpointChain = isReplace ? config.edit : config.add;
+
+    const transferred: { team_number: number; status: string; contestId?: string; replaced?: boolean }[] = [];
     const failed: { team_number: number; error: string }[] = [];
 
     for (const teamNum of teamList) {
       const teamData = allTeamsMap.get(teamNum);
-      const playerData = teamData?.players || [];
-      const captain = teamData?.captain;
-      const vicecaptain = teamData?.vicecaptain;
 
-      // If no generated team data exists for this number, fail with clear message
       if (!teamData) {
         failed.push({
           team_number: teamNum,
@@ -205,23 +212,47 @@ export async function POST(req: Request) {
         continue;
       }
 
-      const payload = {
+      // Extract numeric player IDs (fantasyId) — the real backend requires NUMBERS, not objects
+      const playerIds: number[] = (teamData.players || [])
+        .map((p: any) => (typeof p === "number" ? p : p.fantasyId || (p.id ? parseInt(String(p.id).replace(/\D/g, ""), 10) || 0 : 0)))
+        .filter((id: number) => id > 0);
+
+      const captainPlayer = teamData.captain;
+      const vcPlayer = teamData.vicecaptain;
+      const captainId = typeof captainPlayer === "object" ? (captainPlayer.fantasyId || 0) : (captainPlayer || 0);
+      const viceCaptainId = typeof vcPlayer === "object" ? (vcPlayer.fantasyId || 0) : (vcPlayer || 0);
+
+      if (playerIds.length !== 11 || captainId === 0 || viceCaptainId === 0) {
+        failed.push({
+          team_number: teamNum,
+          error: `Invalid team data (${playerIds.length} players, C:${captainId}, VC:${viceCaptainId}). Need 11 players with numeric IDs.`,
+        });
+        continue;
+      }
+
+      // Build the REAL payload format (matches original teamgeneration.in)
+      const payload: Record<string, unknown> = {
+        matchId,
+        captain: captainId,
+        vice_captain: viceCaptainId,
+        players: playerIds,
         fantasyApp,
         authToken,
-        matchId,
-        tgMatchId: matchId,
-        playerData,
-        captainData: captain ? [captain] : [],
-        vicecaptainData: vicecaptain ? [vicecaptain] : [],
-        generateLinkFlag: action === "join-contests" ? "contest" : "general",
-        teamNumber: teamNum,
+        sportIndex: 0,
+        type: isReplace ? "edit" : "new",
       };
+
+      // For replace (edit), include the team ID to replace
+      if (isReplace && replaceTeamId) {
+        payload.id = replaceTeamId;
+        payload.team_id = replaceTeamId;
+        payload.team_number = replaceTeamId;
+      }
 
       let teamTransferred = false;
       let lastError = "Transfer failed";
 
-      // Try each endpoint for this platform (primary, then fallback)
-      for (const endpoint of endpoints) {
+      for (const endpoint of endpointChain) {
         try {
           const upRes = await fetch(`${BACKEND}${endpoint}`, {
             method: "POST",
@@ -235,31 +266,35 @@ export async function POST(req: Request) {
           });
           const upData = await upRes.json().catch(() => ({}));
 
-          if (upRes.status === 200 && upData?.status === "success") {
+          // ONLY status === "success" is a real success (matches original APK)
+          if (upData?.status === "success") {
             transferred.push({
               team_number: teamNum,
               status: "transferred",
+              replaced: isReplace,
               contestId:
                 action === "join-contests"
                   ? `c${Math.floor(100000 + Math.random() * 900000)}`
                   : undefined,
             });
             teamTransferred = true;
-            break; // success, don't try fallback
+            break;
           } else {
-            lastError = upData?.message || "Transfer failed";
-            // If this endpoint returned a token-expiry error, don't try fallback
-            if (
-              typeof lastError === "string" &&
-              /invalid token|token expired|session expired|auth token/i.test(lastError)
-            ) {
+            lastError = upData?.message || upData?.error || "Transfer failed";
+            // Token expiry -> stop trying fallbacks
+            if (isTokenExpired(lastError, upData)) {
               break;
             }
-            // Otherwise try the next endpoint (fallback)
+            // Rate limit -> stop, surface error
+            const lower = lastError.toLowerCase();
+            if (lower.includes("still processing") || lower.includes("try again later")) {
+              lastError = "We are still processing your last request. Please try again later.";
+              break;
+            }
+            // Otherwise try next endpoint
           }
         } catch (e) {
           lastError = (e as Error).message;
-          // try next endpoint
         }
       }
 
@@ -270,14 +305,16 @@ export async function POST(req: Request) {
 
     const hash = `${fantasyApp}_${matchId}_${Date.now().toString(36)}`;
 
+    const verb = isReplace ? "replaced" : "transferred";
     const messages: Record<string, string> = {
       single:
         transferred.length > 0
-          ? `Team transferred to ${fantasyApp}`
-          : `Transfer failed`,
-      all: `${transferred.length}/${teamList.length} teams transferred to ${fantasyApp}`,
-      bulk: `Bulk transfer: ${transferred.length}/${teamList.length} teams (Team #${startIdx + 1} to #${endIdx + 1}) transferred to ${fantasyApp}`,
+          ? `Team ${verb} to ${fantasyApp}`
+          : `${isReplace ? "Replace" : "Transfer"} failed`,
+      all: `${transferred.length}/${teamList.length} teams ${verb} to ${fantasyApp}`,
+      bulk: `Bulk ${isReplace ? "replace" : "transfer"}: ${transferred.length}/${teamList.length} teams (Team #${startIdx + 1} to #${endIdx + 1}) ${verb} to ${fantasyApp}`,
       "join-contests": `Contests joined for ${transferred.length}/${teamList.length} teams on ${fantasyApp}`,
+      replace: `${transferred.length}/${teamList.length} teams replaced on ${fantasyApp}`,
     };
 
     return NextResponse.json({
@@ -297,6 +334,7 @@ export async function POST(req: Request) {
       transferred: transferred.length,
       teams: transferred,
       failed,
+      operation: isReplace ? "edit" : "add",
       message: messages[action],
       transferredAt: Date.now(),
     });
