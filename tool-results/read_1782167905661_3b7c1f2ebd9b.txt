@@ -1,0 +1,1371 @@
+     1→# Fantasy Transfer — COMPLETE Specification (Task 24)
+     2→
+     3→This document is an exhaustive, code-quoted specification of how fantasy team transfer works in `/tmp/real3/src/`. Every fact below is taken verbatim from the source files (no guessing, no summarization).
+     4→
+     5→Backend base URL (every file): `https://tgsoftware-api.online`
+     6→AES key (every file that decrypts): `coder_bobby_believer01_tg_software`
+     7→
+     8→---
+     9→
+    10→## 1. File-by-file analysis
+    11→
+    12→### 1.1 `/tmp/real3/src/app/api/fantasy/send-otp/route.ts`
+    13→
+    14→**HTTP method:** `POST`
+    15→**This route's URL (frontend → Next.js):** `/api/fantasy/send-otp`
+    16→**Backend URL called:** `POST https://tgsoftware-api.online/api/fantasy/send-otp`
+    17→
+    18→**Request payload (frontend → this route):**
+    19→```ts
+    20→{ fantasyApp: string, mobileNumber: string }
+    21→```
+    22→Field types: `fantasyApp` = string (e.g. `"dream11"`, `"my11circle"`, `"jumbo"`); `mobileNumber` = string (10 digits).
+    23→
+    24→**Validation:**
+    25→```ts
+    26→if (!fantasyApp || !mobileNumber) {
+    27→  return NextResponse.json(
+    28→    { error: "fantasyApp and mobileNumber are required" },
+    29→    { status: 400 }
+    30→  );
+    31→}
+    32→```
+    33→
+    34→**Headers sent to backend:**
+    35→```ts
+    36→{ "Content-Type": "application/json" }
+    37→```
+    38→(No Authorization header is sent on this endpoint.)
+    39→
+    40→**Backend fetch:**
+    41→```ts
+    42→const res = await fetch(`${BACKEND_URL}/api/fantasy/send-otp`, {
+    43→  method: "POST",
+    44→  headers: { "Content-Type": "application/json" },
+    45→  body: JSON.stringify({ fantasyApp, mobileNumber }),
+    46→  signal: AbortSignal.timeout(20000),
+    47→});
+    48→const data = await res.json();
+    49→```
+    50→
+    51→**Response handling:** Pass-through — returns the backend response as-is, with the backend's HTTP status.
+    52→```ts
+    53→return NextResponse.json(data, { status: res.status });
+    54→```
+    55→Inline comment documents the expected backend response shapes:
+    56→- `dream11` → `{ status: "success", data: { state: "...", retries_left: 5, resends_left: 5, resend_after: ... }, message: "..." }`
+    57→- `my11circle` → `{ status: "success", data: {}, message: "OTP successfully sent to ..." }`
+    58→- `jumbo` → `{ status: "success", message: "OTP successfully sent to ..." }`
+    59→
+    60→**Success:** backend returns `status: "success"` (or `data`/`state` is truthy).
+    61→**Failure:** network/timeout → `{ status: "fail", error: "Failed to send OTP. Please check your connection and try again." }` (HTTP 200).
+    62→
+    63→---
+    64→
+    65→### 1.2 `/tmp/real3/src/app/api/fantasy/verify-otp/route.ts`
+    66→
+    67→**HTTP method:** `POST`
+    68→**This route's URL:** `/api/fantasy/verify-otp`
+    69→**Backend URL:** `POST https://tgsoftware-api.online/api/fantasy/verify-otp`
+    70→
+    71→**Request payload (frontend → this route):**
+    72→```ts
+    73→{
+    74→  fantasyApp: string,                 // e.g. "dream11"
+    75→  mobileNumber: string,               // 10-digit
+    76→  otp?: string,                       // 6-digit (legacy alias)
+    77→  verificationCode?: string,          // 6-digit (preferred)
+    78→  // Platform-specific, sourced from send-otp response:
+    79→  state?: string,                     // dream11
+    80→  reasonCode?: string|number,         // my11circle
+    81→  challenge?: string,                 // my11circle
+    82→  loginAuthToken?: string,            // myteam11 (sent as Loginauthtoken)
+    83→  userId?: string,                    // vision11
+    84→}
+    85→```
+    86→Code:
+    87→```ts
+    88→const code = verificationCode || otp;
+    89→if (!fantasyApp || !mobileNumber || !code) {
+    90→  return NextResponse.json(
+    91→    { error: "fantasyApp, mobileNumber, and verification code are required" },
+    92→    { status: 400 }
+    93→  );
+    94→}
+    95→```
+    96→
+    97→**Payload built for backend (matches original APK):**
+    98→```ts
+    99→const payload: Record<string, string | number> = {
+   100→  fantasyApp,
+   101→  mobileNumber,
+   102→  verificationCode: code,
+   103→};
+   104→if (fantasyApp === "dream11" && state) payload.state = state;
+   105→if (fantasyApp === "my11circle") {
+   106→  if (reasonCode) payload.reasonCode = reasonCode;
+   107→  if (challenge) payload.challenge = challenge;
+   108→}
+   109→if (fantasyApp === "myteam11" && loginAuthToken) {
+   110→  payload.Loginauthtoken = loginAuthToken;     // Capital "L" — original APK quirk
+   111→}
+   112→if (fantasyApp === "vision11" && userId) payload.userId = userId;
+   113→```
+   114→
+   115→**Headers sent to backend:**
+   116→```ts
+   117→{ "Content-Type": "application/json" }
+   118→```
+   119→(No Authorization header.)
+   120→
+   121→**Backend fetch:**
+   122→```ts
+   123→const res = await fetch(`${BACKEND_URL}/api/fantasy/verify-otp`, {
+   124→  method: "POST",
+   125→  headers: { "Content-Type": "application/json" },
+   126→  body: JSON.stringify(payload),
+   127→  signal: AbortSignal.timeout(25000),
+   128→});
+   129→const responseText = await res.text();
+   130→```
+   131→
+   132→**Response parsing:** Read text first, then JSON.parse. If `data.data` is a string, decrypt with AES (`coder_bobby_believer01_tg_software`) and JSON.parse the result.
+   133→```ts
+   134→let rd: unknown = data.data || data;
+   135→if (typeof data.data === "string" && data.data) {
+   136→  const decrypted = decryptAES(data.data);
+   137→  if (decrypted) {
+   138→    try { rd = JSON.parse(decrypted); }
+   139→    catch { rd = { rawDecrypted: decrypted }; }
+   140→  }
+   141→}
+   142→```
+   143→
+   144→**Token extraction (`findTokenDeep` + `extractRealToken`):**
+   145→- `findTokenDeep` recurses up to depth 5, checking keys in order: `token`, `authToken`, `access_token`, `accessToken`. Returns the first string longer than 5 chars.
+   146→- `extractRealToken(rawToken)`:
+   147→  - If token starts with `{`, JSON.parse and look for `accessToken`, `access_token`, `token`, `authToken` in that order.
+   148→  - Otherwise, return the raw string as-is.
+   149→
+   150→**CRITICAL:** The route returns the **raw, full token** (including the JSON wrapper if present) — NOT the extracted `accessToken`:
+   151→```ts
+   152→return NextResponse.json({
+   153→  status: "success",
+   154→  token: rawToken,                  // FULL raw token (JSON wrapper preserved)
+   155→  accessToken: extractedAccessToken, // Extracted JWT for reference
+   156→  data: rd,
+   157→  my11circleChallenge: my11circleChallenge as string | null,
+   158→  my11circleUserId: my11circleUserId as string | null,
+   159→  message: (data.message as string) || "Account linked successfully",
+   160→}, { status: 200 });
+   161→```
+   162→The comment block (lines 194–202) explicitly states:
+   163→> The backend's add-team endpoint expects the FULL JSON token like:
+   164→>   `{"accessToken":"eyJ...","refreshToken":"...","idToken":"..."}`
+   165→> NOT just the extracted accessToken JWT.
+   166→
+   167→**Success:** `token` field is non-empty (raw token returned).
+   168→**Failure:**
+   169→- Non-JSON response → `{ status: "fail", error: "Unexpected response from verification server. Please try again.", code: "INVALID_RESPONSE" }`
+   170→- Backend returns `status: "fail"` or `"error"` → `{ status: "fail", error: <msg>, message: <msg> }`
+   171→- Success with no token → returns `{ status: "success", data: rd, message: ... }` (frontend must extract token itself).
+   172→
+   173→**My11Circle extra extraction:** Pulls `my11circleChallenge` and `my11circleUserId` out of `rd` (top-level or `rd.data`).
+   174→
+   175→---
+   176→
+   177→### 1.3 `/tmp/real3/src/app/api/fantasy/list-of-teams/route.ts`
+   178→
+   179→**HTTP method:** `POST`
+   180→**This route's URL:** `/api/fantasy/list-of-teams`
+   181→**Backend URLs (per platform, run in parallel via `Promise.any`):**
+   182→```ts
+   183→const LIST_ENDPOINTS: Record<string, string[]> = {
+   184→  dream11: [
+   185→    `${BACKEND_URL}/api/fantasy/list-of-teams`,
+   186→    `${BACKEND_URL}/api/classic/dream11/list-of-teams`,
+   187→  ],
+   188→  my11circle: [
+   189→    `${BACKEND_URL}/api/fantasy/list-of-teams`,
+   190→    `${BACKEND_URL}/api/classic/my11circle/list-of-teams`,
+   191→  ],
+   192→  jumbo: [
+   193→    `${BACKEND_URL}/api/fantasy/list-of-teams`,
+   194→  ],
+   195→};
+   196→const DEFAULT_ENDPOINTS = [`${BACKEND_URL}/api/fantasy/list-of-teams`];
+   197→```
+   198→
+   199→**Request payload (frontend → this route):**
+   200→```ts
+   201→{
+   202→  fantasyApp: string,
+   203→  matchId: string | number,
+   204→  authToken: string,
+   205→  userId?: string,                  // vision11
+   206→  my11circleChallenge?: string,
+   207→  my11circleUserId?: string,
+   208→  my11circleMobile?: string,
+   209→  userToken?: string,               // Google OAuth JWT — used as Bearer
+   210→}
+   211→```
+   212→Validation: `fantasyApp`, `matchId`, `authToken` all required (else HTTP 200 + `{ status:"fail", error:"..." }`).
+   213→
+   214→**Payload built for backend:**
+   215→```ts
+   216→const payload: Record<string, unknown> = {
+   217→  fantasyApp,
+   218→  matchId: String(matchId),
+   219→  authToken,
+   220→};
+   221→if (fantasyApp === "vision11" && userId) payload.userId = userId;
+   222→if (fantasyApp === "my11circle") {
+   223→  if (my11circleChallenge) payload.my11circleChallenge = String(my11circleChallenge);
+   224→  if (my11circleUserId)    payload.my11circleUserId    = String(my11circleUserId);
+   225→  if (my11circleMobile)    payload.my11circleMobile    = String(my11circleMobile);
+   226→}
+   227→```
+   228→
+   229→**Headers — BEARER IS SENT HERE:**
+   230→```ts
+   231→const effectiveToken = await resolveBearerToken(userToken);
+   232→const headers: Record<string, string> = {
+   233→  "Content-Type": "application/json",
+   234→  "Authorization": `Bearer ${effectiveToken}`,
+   235→};
+   236→```
+   237→`effectiveToken` is `userToken` if longer than 20 chars, else shared pool token, else empty string.
+   238→Even with empty `effectiveToken`, the header is still sent as `Authorization: Bearer ` (empty after space).
+   239→
+   240→**Parallel fetch (Promise.any):** Each endpoint gets a 10-second timeout.
+   241→- HTTP 404 → reject that endpoint, try others.
+   242→- Non-JSON → reject.
+   243→- `data.status === "success"` → decrypt `data.data` if string, extract `teams_list` from `rd.teams_list || data.teams_list`. Resolve `{type:"success", teamsList, endpointUrl}`.
+   244→- Token-related error message (`invalid token`, `token expired`, `auth`) → resolve `{type:"token_error", errorMsg, endpointUrl}` (returns immediately, doesn't try others).
+   245→- Other errors → reject (let other endpoints try).
+   246→
+   247→**Success response:**
+   248→```ts
+   249→{ status: "success", teams_list: [...] }
+   250→```
+   251→Each team is `{ team_id: string, captain: number, vice_captain: number, player_list: number[] }` (per top-of-file comment).
+   252→
+   253→**Failure modes:**
+   254→- Token error → `{ status: "fail", error: <msg>, teams_list: [] }`
+   255→- All endpoints fail → `{ status: "fail", error: "Could not fetch existing teams. Transfer will create new teams instead.", teams_list: [] }` (intentional — lets transfer proceed in "add" mode).
+   256→
+   257→---
+   258→
+   259→### 1.4 `/tmp/real3/src/app/api/fantasy/classic-addteam/route.ts`
+   260→
+   261→**HTTP method:** `POST`
+   262→**This route's URL:** `/api/fantasy/classic-addteam`
+   263→**Backend URL:** platform-specific:
+   264→```ts
+   265→if (fantasyApp === "dream11")    endpoint = `${BACKEND_URL}/api/classic/dream11/addteam`;
+   266→else if (fantasyApp === "my11circle") endpoint = `${BACKEND_URL}/api/classic/my11circle/addteam`;
+   267→else if (fantasyApp === "jumbo")      endpoint = `${BACKEND_URL}/api/classic/jumbo/addteam`;
+   268→else                                   endpoint = `${BACKEND_URL}/api/classic/dream11/addteam`;
+   269→```
+   270→
+   271→**Request payload (frontend → this route):**
+   272→```ts
+   273→{
+   274→  fantasyApp: string,
+   275→  tgMatchId: string,
+   276→  playerData: <opaque>,
+   277→  captainData: <opaque>,
+   278→  vicecaptainData: <opaque>,
+   279→}
+   280→```
+   281→All five fields required (else HTTP 400).
+   282→
+   283→**Payload built for backend:**
+   284→```ts
+   285→const payload = {
+   286→  tgMatchId,
+   287→  playerData,
+   288→  captainData,
+   289→  vicecaptainData,
+   290→  generateLinkFlag: "general",
+   291→};
+   292→```
+   293→
+   294→**Headers:** `{ "Content-Type": "application/json" }` only (NO Authorization).
+   295→
+   296→**Response parsing:** If `data.data` is a string, decrypt via `decryptString` (AES key from `tg-api.ts`) and extract `parsed.link`. Falls back to `data.data.link` if it's already an object.
+   297→
+   298→**Success:**
+   299→```ts
+   300→return NextResponse.json({
+   301→  status: data.status || (res.ok ? "success" : "error"),
+   302→  link,
+   303→  message: data.message || "",
+   304→}, { status: res.status });
+   305→```
+   306→
+   307→**NOTE:** This route generates a *transfer link* — it does NOT directly create a team on the platform. Used by the classic-share-link flow.
+   308→
+   309→---
+   310→
+   311→### 1.5 `/tmp/real3/src/app/api/fantasy/auth-verify/route.ts`
+   312→
+   313→**HTTP method:** `POST`
+   314→**This route's URL:** `/api/fantasy/auth-verify`
+   315→**Backend URL:** `POST https://tgsoftware-api.online/api/fantasy/auth/verify`
+   316→
+   317→**Request payload (frontend → this route):**
+   318→```ts
+   319→{
+   320→  fantasyApp: string,
+   321→  authToken: string,
+   322→  matchId?: string | number,
+   323→  userToken?: string,                  // Bearer JWT
+   324→  my11circleChallenge?: string,
+   325→  my11circleUserId?: string,
+   326→  my11circleMobile?: string,
+   327→}
+   328→```
+   329→Validation: `fantasyApp` and `authToken` required.
+   330→
+   331→**Payload built for backend:**
+   332→```ts
+   333→const payload: Record<string, string | null> = { fantasyApp, authToken };
+   334→if (matchId) payload.matchId = String(matchId);
+   335→if (fantasyApp === "my11circle") {
+   336→  if (my11circleChallenge) payload.my11circleChallenge = String(my11circleChallenge);
+   337→  if (my11circleUserId)    payload.my11circleUserId    = String(my11circleUserId);
+   338→  if (my11circleMobile)    payload.my11circleMobile    = String(my11circleMobile);
+   339→}
+   340→```
+   341→
+   342→**Headers (Bearer is sent):**
+   343→```ts
+   344→headers: {
+   345→  "Content-Type": "application/json",
+   346→  "Authorization": `Bearer ${await resolveBearerToken(body.userToken)}`,
+   347→},
+   348→```
+   349→
+   350→**Backend fetch (8s timeout):**
+   351→```ts
+   352→const res = await fetch(`${BACKEND_URL}/api/fantasy/auth/verify`, {
+   353→  method: "POST",
+   354→  headers,
+   355→  body: JSON.stringify(payload),
+   356→  signal: AbortSignal.timeout(8000),
+   357→});
+   358→```
+   359→
+   360→**Response parsing:**
+   361→- Non-JSON → `{ validToken: null, retryable: true, message: "Could not verify token - server returned unexpected response" }`
+   362→- HTTP 401/403 → `{ validToken: false, error: "Token expired or invalid", needsReauth: true }`
+   363→- Otherwise → pass through backend response as-is.
+   364→
+   365→**Success:** `data.validToken === true` (and optionally `data.updateUiToken === true` with `data.authToken` containing a refreshed token).
+   366→**Failure:** `data.validToken === false`, OR HTTP 401/403, OR `data.status === "fail"`.
+   367→
+   368→---
+   369→
+   370→### 1.6 `/tmp/real3/src/app/api/fantasy/check-auth/route.ts`
+   371→
+   372→**HTTP method:** `POST`
+   373→**This route's URL:** `/api/fantasy/check-auth`
+   374→**Backend URLs:** platform-specific "teams" listing:
+   375→```ts
+   376→if (app === "dream11")         endpoint = `${BACKEND_URL}/api/classic/dream11/teams`;
+   377→else if (app === "my11circle") endpoint = `${BACKEND_URL}/api/classic/my11circle/teams`;
+   378→else                            endpoint = `${BACKEND_URL}/api/classic/dream11/teams`;
+   379→```
+   380→
+   381→**Request payload (frontend → this route):**
+   382→```ts
+   383→{ authToken: string, fantasyApp?: string, mobileNumber?: string }
+   384→```
+   385→Validation: `authToken` required and `10 < token.length < 5000` (else `INVALID_TOKEN_FORMAT`).
+   386→
+   387→**Payload built for backend:**
+   388→```ts
+   389→{ authToken, mobileNumber: mobileNumber || "" }
+   390→```
+   391→
+   392→**Headers:** `{ "Content-Type": "application/json" }` only (NO Authorization).
+   393→
+   394→**Response parsing:** If backend returns `status: "success"` → token is valid. If error message contains `token`, `auth`, `session`, or `expired` → `TOKEN_EXPIRED` + `needsReauth: true`. Otherwise returns format-based validation (`valid: isValidFormat`).
+   395→
+   396→**NOTE:** This route is a secondary validator, used to surface token-expiry warnings. The primary path is `auth-verify` + reactive error handling in the transfer route.
+   397→
+   398→---
+   399→
+   400→### 1.7 `/tmp/real3/src/lib/shared-token.ts`
+   401→
+   402→**Purpose:** Manage a shared Google JWT pool so users without their own Google OAuth can still hit Bearer-protected endpoints.
+   403→
+   404→**Storage:** Prisma `AppSetting` table, encrypted-at-rest (per docstring).
+   405→- Key `shared_google_jwt` → the JWT string.
+   406→- Key `shared_google_jwt_expiry` → ISO timestamp.
+   407→
+   408→**Functions:**
+   409→- `getSharedToken()` — returns the JWT string, or null if missing/expired/shorter than 20 chars.
+   410→- `setSharedToken(token, expiryDays=30)` — upserts both keys.
+   411→- `clearSharedToken()` — sets both keys to `""`.
+   412→- `resolveBearerToken(userToken?)` — **the key function**:
+   413→```ts
+   414→export async function resolveBearerToken(userToken?: string | null): Promise<string> {
+   415→  if (userToken && userToken.length > 20) return userToken;   // 1. User's own JWT
+   416→  const shared = await getSharedToken();                       // 2. Shared pool
+   417→  if (shared) return shared;
+   418→  return userToken || "";                                       // 3. Empty string
+   419→}
+   420→```
+   421→- `hasSharedToken()` — boolean for frontend status display.
+   422→
+   423→---
+   424→
+   425→### 1.8 `/tmp/real3/src/lib/tg-api.ts`
+   426→
+   427→**Exports used by the transfer flow:**
+   428→- `decryptString(encrypted)` — `CryptoJS.AES.decrypt(encrypted, ENCRYPTION_KEY).toString(CryptoJS.enc.Utf8)`, returns `""` on error. `ENCRYPTION_KEY = "coder_bobby_believer01_tg_software"`.
+   429→- `decryptJSON<T>(encrypted)` — `decryptString` + `JSON.parse`.
+   430→- `fetchMatches(sport)` — `GET https://tgsoftware-api.online/api/fantasy/matches/${sport}`, expects `{ status:"success", data:[encryptedMatchStrings] }`. Each match is AES-encrypted JSON. Filters out matches older than 6 hours.
+   431→- `fetchMatchDetail(matchId)` — `GET /api/fantasy/match/${matchId}`, returns `{ status, data: RawMatchDetail }` (NOT encrypted at top level — but `match_time`, team names/images, and player objects ARE individually AES-encrypted).
+   432→- `generateTransferUrl(platform, matchId, players, captainIndex, viceCaptainIndex)` — builds a *deep-link URL* (e.g. `https://dream11.com/teams/create?match=...&players=...&captain=...&vice_captain=...`). Used for the share-link flow only.
+   433→
+   434→**Sport role maps:**
+   435→```ts
+   436→const CRICKET_ROLES = ["WK", "BAT", "AL", "BOWL"];
+   437→const FOOTBALL_ROLES = ["GK", "DEF", "MID", "FWD"];
+   438→const BASKETBALL_ROLES = ["GK", "DEF", "MID", "FWD"];
+   439→const KABADDI_ROLES = ["DEF", "ALL", "RAID"];
+   440→const SPORT_INDEX_MAP = { 0:"cricket", 1:"football", 2:"basketball", 3:"kabaddi" };
+   441→```
+   442→
+   443→**RawPlayer** (the decrypted player shape from the backend):
+   444→```ts
+   445→interface RawPlayer {
+   446→  name: string; image: string; playing: number; last_play: number;
+   447→  last_play_text: string; role: number; credits: number; points: number;
+   448→  selected_by: number; captain_percentage: number; vice_captain_percentage: number;
+   449→  team_index: number; team_name: string; player_fixed_id: number; pl_id: number;
+   450→  player_type: string;
+   451→  fantasy_id_list: Array<{ name: string; id: number }>;  // <-- the source of platform-specific fantasy IDs
+   452→  player_index: number;
+   453→}
+   454→```
+   455→The frontend extracts each player's per-platform fantasy ID from `fantasy_id_list[].id` where `fantasy_id_list[].name === platform`.
+   456→
+   457→---
+   458→
+   459→### 1.9 `/tmp/real3/src/components/OTPDialog.tsx` (handleSendOTP + handleVerifyOTP)
+   460→
+   461→**`handleSendOTP()` (lines 42–65):**
+   462→
+   463→Frontend → `/api/fantasy/send-otp`:
+   464→```ts
+   465→const res = await fetch("/api/fantasy/send-otp", {
+   466→  method: "POST",
+   467→  headers: { "Content-Type": "application/json" },
+   468→  body: JSON.stringify({ fantasyApp, mobileNumber }),
+   469→});
+   470→const data = await res.json();
+   471→```
+   472→
+   473→Mobile number validation: must be ≥ 10 digits (`mobileNumber.length < 10` blocks).
+   474→
+   475→Success condition:
+   476→```ts
+   477→if (res.ok && (data.status === "success" || data.state || data.data)) {
+   478→```
+   479→On success, the platform-specific data is pulled from `rd = data.data || data`:
+   480→- `rd.state` → saved as `otpState` (dream11)
+   481→- `rd.reasonCode` → saved as `reasonCode` (my11circle)
+   482→- `rd.challenge` → saved as `challenge` (my11circle)
+   483→- `rd.login_auth_token` → saved as `loginAuthToken` (myteam11)
+   484→- `rd.userId` → saved as `userId` (vision11)
+   485→
+   486→Then advances `step` to `2`, sets 60-second resend cooldown.
+   487→
+   488→**`handleVerifyOTP()` (lines 67–120):**
+   489→
+   490→OTP validation: must be ≥ 6 digits.
+   491→
+   492→Frontend → `/api/fantasy/verify-otp` payload:
+   493→```ts
+   494→const payload: Record<string, string | number | null | undefined> = {
+   495→  fantasyApp,
+   496→  mobileNumber,
+   497→  verificationCode: otp,
+   498→};
+   499→if (fantasyApp === "dream11" && otpState) payload.state = otpState;
+   500→if (fantasyApp === "my11circle") {
+   501→  if (reasonCode) payload.reasonCode = reasonCode;
+   502→  if (challenge)  payload.challenge  = challenge;
+   503→}
+   504→if (fantasyApp === "myteam11" && loginAuthToken) {
+   505→  payload.Loginauthtoken = loginAuthToken;       // Capital "L" (matches original APK)
+   506→}
+   507→if (fantasyApp === "vision11" && userId) payload.userId = userId;
+   508→
+   509→const res = await fetch("/api/fantasy/verify-otp", {
+   510→  method: "POST",
+   511→  headers: { "Content-Type": "application/json" },
+   512→  body: JSON.stringify(payload),
+   513→});
+   514→const data = await res.json();
+   515→const rd = data.data || data;
+   516→```
+   517→
+   518→Token extraction (frontend):
+   519→```ts
+   520→let token = data.token || rd.token || data.authToken || rd.authToken;
+   521→const my11circleChallengeFromResp = data.my11circleChallenge || rd.my11circleChallenge;
+   522→const my11circleUserIdFromResp    = data.my11circleUserId    || rd.my11circleUserId;
+   523→```
+   524→
+   525→On success (`token` truthy) the `FantasyAccount` is built and saved to localStorage:
+   526→```ts
+   527→onLinked({
+   528→  mobileNumber,
+   529→  authToken: token,                 // FULL raw token (may be a JSON string)
+   530→  linkedAt: new Date().toISOString(),
+   531→  my11circleChallenge: my11circleChallengeFromResp || challenge || undefined,
+   532→  my11circleUserId:    my11circleUserIdFromResp    || undefined,
+   533→  userId: userId || rd.userId || undefined,
+   534→});
+   535→```
+   536→
+   537→On failure:
+   538→```ts
+   539→const msg = data.error || data.message || rd.error || rd.message || "Invalid OTP. Please check and try again.";
+   540→setErrorMsg(msg);
+   541→setRetryCount(prev => prev + 1);
+   542→```
+   543→
+   544→`FantasyAccount` shape (from `types.ts`):
+   545→```ts
+   546→interface FantasyAccount {
+   547→  mobileNumber: string;
+   548→  authToken: string;             // The token used in every transfer
+   549→  linkedAt: string;              // ISO timestamp
+   550→  my11circleChallenge?: string;
+   551→  my11circleUserId?: string;
+   552→  userId?: string;               // vision11
+   553→}
+   554→```
+   555→
+   556→---
+   557→
+   558→### 1.10 `/tmp/real3/src/components/TeamTransferScreen.tsx` (buildTransferPayloads + executeTransferBatch)
+   559→
+   560→**Constants & state (lines 21–40):**
+   561→```ts
+   562→const [existingTeams, setExistingTeams] = useState<Array<{
+   563→  team_id: string; captain: number; vice_captain: number; player_list: number[];
+   564→}>>([]);
+   565→const maxTeams = platform === "dream11" ? 11 : 40;   // dream11 = 11, others = 40
+   566→const newSlots = Math.max(0, maxTeams - presentTeamCount);
+   567→```
+   568→
+   569→**`getUserToken()` (lines 137–139):**
+   570→```ts
+   571→const getUserToken = useCallback((): string => {
+   572→  try { return localStorage.getItem("user_token") || ""; } catch { return ""; }
+   573→}, []);
+   574→```
+   575→
+   576→**`fetchExistingTeams()` (lines 61–91):**
+   577→```ts
+   578→const res = await fetch("/api/fantasy/list-of-teams", {
+   579→  method: "POST",
+   580→  headers: { "Content-Type": "application/json" },
+   581→  body: JSON.stringify({
+   582→    fantasyApp: platform,
+   583→    matchId,
+   584→    authToken: currentAccount.authToken,
+   585→    userId: currentAccount.userId,
+   586→    userToken: getUserToken(),
+   587→  }),
+   588→});
+   589→const data = await res.json();
+   590→if (data.status === "success" && Array.isArray(data.teams_list)) {
+   591→  setExistingTeams(data.teams_list);
+   592→}
+   593→```
+   594→
+   595→**`addPlatformFields()` (lines 152–167):**
+   596→```ts
+   597→if (platform === "my11circle" && currentAccount) {
+   598→  if (currentAccount.my11circleChallenge) payload.my11circleChallenge = currentAccount.my11circleChallenge;
+   599→  if (currentAccount.my11circleUserId)    payload.my11circleUserId    = currentAccount.my11circleUserId;
+   600→  if (currentAccount.mobileNumber)        payload.my11circleMobile    = currentAccount.mobileNumber;
+   601→}
+   602→if (platform === "vision11" && currentAccount?.userId) {
+   603→  payload.userId = currentAccount.userId;
+   604→}
+   605→```
+   606→
+   607→**`buildTransferPayloads(mode)` (lines 169–248):**
+   608→
+   609→Three modes:
+   610→- `"all"` (default): edit `min(presentTeamCount, selectedTeams.length)` teams, add the rest as new.
+   611→- `"newSlotsOnly"`: only add new teams, capped at `newSlots`.
+   612→- `"custom"`: edit `customReplaceCount` + add `customAddCount` (X+Y ≤ selCount).
+   613→
+   614→Per-team payload build:
+   615→```ts
+   616→const playerIds = team.players
+   617→  .map(p => p.fantasyId)
+   618→  .filter((id): id is number => id !== null && id !== undefined);
+   619→
+   620→// VALIDATION: skip teams with < 11 fantasy IDs
+   621→if (playerIds.length < 11) { continue; }
+   622→
+   623→const captainPlayer      = team.players.find(p => p.isCaptain);
+   624→const viceCaptainPlayer  = team.players.find(p => p.isViceCaptain);
+   625→
+   626→// Captain/VC are FANTASY IDs (numbers), NOT array indices
+   627→const rawCaptainId      = captainPlayer?.fantasyId || playerIds[0] || 0;
+   628→const rawViceCaptainId  = viceCaptainPlayer?.fantasyId || playerIds[1] || 0;
+   629→const captainId     = typeof rawCaptainId     === "number" ? rawCaptainId     : parseInt(String(rawCaptainId), 10);
+   630→const viceCaptainId = typeof rawViceCaptainId === "number" ? rawViceCaptainId : parseInt(String(rawViceCaptainId), 10);
+   631→
+   632→// VALIDATION: captain/VC must be non-zero numbers
+   633→if (!captainId || isNaN(captainId) || !viceCaptainId || isNaN(viceCaptainId)) { continue; }
+   634→
+   635→const payload: Record<string, unknown> = {
+   636→  matchId,
+   637→  captain: captainId,            // NUMBER — critical
+   638→  vice_captain: viceCaptainId,   // NUMBER — critical
+   639→  players: playerIds,            // number[] of fantasy IDs
+   640→  fantasyApp: platform,
+   641→  authToken: currentAccount?.authToken,
+   642→  sportIndex,
+   643→  type: isEdit ? "edit" : "new", // "edit" or "new"
+   644→  userToken: getUserToken(),     // Google OAuth JWT (optional)
+   645→};
+   646→
+   647→if (isEdit && existingTeams[i]) {
+   648→  payload.id = existingTeams[i].team_id;
+   649→}
+   650→
+   651→addPlatformFields(payload);
+   652→```
+   653→
+   654→**`buildReplacePayloads()` (lines 282–343):** Same as above, but `type: "edit"` always, and `payload.id` is the *user-selected* existing team ID (not the i-th one).
+   655→
+   656→**`executeTransferBatch(payloads)` (lines 579–763):**
+   657→
+   658→Parallel batch size: `5` teams at a time.
+   659→Per-platform delay between batches:
+   660→```ts
+   661→const delay = platform === "dream11" ? 200 : platform === "my11circle" ? 800 : 500;
+   662→```
+   663→
+   664→Per-team request:
+   665→```ts
+   666→const res = await fetch("/api/fantasy/transfer", {
+   667→  method: "POST",
+   668→  headers: { "Content-Type": "application/json" },
+   669→  body: JSON.stringify({ ...payload, skipPreVerify: true }),
+   670→});
+   671→const data = await res.json();
+   672→
+   673→if (data.status === "success") {
+   674→  successCount++;
+   675→  return { success: true, index: i };
+   676→}
+   677→```
+   678→
+   679→Error code handling (frontend):
+   680→- `TOKEN_EXPIRED` → try `tryRefreshToken()` once via `/api/fantasy/auth-verify`. If refresh succeeds, update `payloads[j].authToken` for all remaining teams and retry. If refresh fails → fail remaining teams.
+   681→- `NO_AUTH_TOKEN` → fail this team, mark `tokenExpired: true`.
+   682→- `NO_BEARER_TOKEN` → fail this team (legacy safety net).
+   683→- `DEADLINE_PASSED` → fail this team + remaining (deadline is global).
+   684→- `TEAM_LIMIT_REACHED` → fail this team + remaining.
+   685→- `MISSING_PLAYERS`, `MISSING_CAPTAIN`, `MISSING_VICE_CAPTAIN`, `INSUFFICIENT_PLAYERS`, `MISSING_MATCH_ID`, `INVALID_CAPTAIN_ID`, `INVALID_VICE_CAPTAIN_ID` → fail this team, no retry.
+   686→- Other → retry once, then fail.
+   687→
+   688→After batch:
+   689→```ts
+   690→setTransferResult({ success: successCount, fail: failCount, errors: errorMsgs });
+   691→```
+   692→On any success → toast "Transfer Complete! ✅", refetch existing teams after 1s.
+   693→On `confirmedTokenExpiry` → toast "Session Expired 🔐" (does NOT clear account data).
+   694→On all-fail with proxy/token-format errors → toast "Transfer Failed — Re-link Required 🔄".
+   695→
+   696→**`tryRefreshToken()` (lines 518–572):** Calls `/api/fantasy/auth-verify` with `{ fantasyApp, authToken, matchId, [my11circle fields] }`. If `verifyData.validToken === false` → return null. If `verifyData.updateUiToken && verifyData.authToken` → update localStorage + state, return the new token. Otherwise return the existing token.
+   697→
+   698→---
+   699→
+   700→### 1.11 `/tmp/real3/src/app/api/fantasy/transfer/route.ts` (the FULL 707-line file)
+   701→
+   702→**HTTP method:** `POST`
+   703→**This route's URL:** `/api/fantasy/transfer`
+   704→**Backend URLs (per platform, sequential with fallback):**
+   705→```ts
+   706→const PLATFORM_ENDPOINTS: Record<string, EndpointConfig> = {
+   707→  dream11: {
+   708→    addEndpoints: [
+   709→      `${BACKEND_URL}/api/fantasy/add-team`,
+   710→      `${BACKEND_URL}/api/classic/dream11/addteam`,   // 2nd-chance fallback
+   711→    ],
+   712→    editEndpoints: [ `${BACKEND_URL}/api/fantasy/edit-team` ],
+   713→    delayBetweenRetries: 2000,
+   714→  },
+   715→  my11circle: {
+   716→    addEndpoints: [ `${BACKEND_URL}/api/fantasy/add-team` ],
+   717→    editEndpoints: [ `${BACKEND_URL}/api/fantasy/edit-team` ],
+   718→    delayBetweenRetries: 3000,
+   719→  },
+   720→  jumbo: {
+   721→    addEndpoints: [ `${BACKEND_URL}/api/fantasy/add-team` ],
+   722→    editEndpoints: [ `${BACKEND_URL}/api/fantasy/edit-team` ],
+   723→    delayBetweenRetries: 2000,
+   724→  },
+   725→  vision11: {
+   726→    addEndpoints: [ `${BACKEND_URL}/api/fantasy/add-team` ],
+   727→    editEndpoints: [ `${BACKEND_URL}/api/fantasy/edit-team` ],
+   728→    delayBetweenRetries: 2000,
+   729→  },
+   730→  myteam11: {
+   731→    addEndpoints: [ `${BACKEND_URL}/api/fantasy/add-team` ],
+   732→    editEndpoints: [ `${BACKEND_URL}/api/fantasy/edit-team` ],
+   733→    delayBetweenRetries: 2000,
+   734→  },
+   735→};
+   736→const DEFAULT_CONFIG: EndpointConfig = {
+   737→  addEndpoints:    [ `${BACKEND_URL}/api/fantasy/add-team` ],
+   738→  editEndpoints:   [ `${BACKEND_URL}/api/fantasy/edit-team` ],
+   739→  delayBetweenRetries: 2000,
+   740→};
+   741→```
+   742→
+   743→**Request payload (frontend → this route) — ALL fields read from body:**
+   744→```ts
+   745→const {
+   746→  authToken,            // string — fantasy platform token (REQUIRED)
+   747→  matchId,              // string | number (REQUIRED)
+   748→  captain,              // number (REQUIRED, converted via toNumber)
+   749→  vice_captain,         // number (REQUIRED, converted via toNumber)
+   750→  players,              // number[] | comma-string (REQUIRED, ≥11 items)
+   751→  fantasyApp,           // string (default "dream11")
+   752→  sportIndex,           // number (default 0)
+   753→  type,                 // "edit" | "new" (default "add" → "new")
+   754→  id,                   // string (REQUIRED if type="edit")
+   755→  mobileNumber,         // string (optional, added if present)
+   756→  userId,               // string (vision11 only)
+   757→  my11circleChallenge,  // string (my11circle only)
+   758→  my11circleUserId,     // string (my11circle only)
+   759→  my11circleMobile,     // string (my11circle only)
+   760→  userToken,            // string — Google OAuth JWT (used as Bearer)
+   761→  skipPreVerify,        // boolean (defaults to true at frontend)
+   762→} = body;
+   763→```
+   764→
+   765→**Validation (`validateTransferParams`, lines 84–120):**
+   766→- `authToken` missing → `NO_AUTH_TOKEN` + `needsAuth: true`
+   767→- `matchId` missing → `MISSING_MATCH_ID`
+   768→- `captain` falsy or 0 → `MISSING_CAPTAIN`
+   769→- `vice_captain` falsy or 0 → `MISSING_VICE_CAPTAIN`
+   770→- `players` not array or empty → `MISSING_PLAYERS`
+   771→- `players.length < 11` → `INSUFFICIENT_PLAYERS`
+   772→- `fantasyApp` missing → `MISSING_FANTASY_APP`
+   773→- `type === "edit" && !id` → `MISSING_TEAM_ID`
+   774→
+   775→**Captain/VC type coercion (`toNumber`, lines 190–197):**
+   776→```ts
+   777→function toNumber(val: unknown): number | null {
+   778→  if (typeof val === "number" && !isNaN(val)) return val;
+   779→  if (typeof val === "string") {
+   780→    const n = parseInt(val, 10);
+   781→    return isNaN(n) ? null : n;
+   782→  }
+   783→  return null;
+   784→}
+   785→```
+   786→If `captain` or `vice_captain` cannot be coerced → returns `INVALID_CAPTAIN_ID` / `INVALID_VICE_CAPTAIN_ID`.
+   787→
+   788→**Player IDs parsing (lines 284–323):** Accepts comma-separated string OR array. Each item is parsed via `parseInt` (string items only). Final `numericPlayerIds` is `number[]` with all zeros filtered out.
+   789→
+   790→**Bearer token resolution (line 277):**
+   791→```ts
+   792→const bearerToken = await resolveBearerToken(userToken);
+   793→```
+   794→Same logic as in `shared-token.ts`: user JWT (if > 20 chars) → shared pool → empty string.
+   795→
+   796→**BYPASS MODE (lines 342–351):** If `bearerToken` is empty or shorter than 20 chars, the route does NOT abort. It logs a warning and continues — the transfer is attempted without an `Authorization` header.
+   797→
+   798→**Pre-verification gate (lines 356–374):**
+   799→```ts
+   800→if (skipPreVerify !== true && !skipPreVerify) {
+   801→  const tokenValid = await preVerifyToken(preparedToken, app, String(matchId), bearerToken);
+   802→  if (tokenValid === false) {
+   803→    return NextResponse.json({
+   804→      status: "fail",
+   805→      error: `Your ${app} session has expired. Please re-link your account via OTP verification before transferring teams.`,
+   806→      code: "TOKEN_EXPIRED",
+   807→      needsReauth: true,
+   808→    }, { status: 200 });
+   809→  }
+   810→}
+   811→```
+   812→Frontend always sends `skipPreVerify: true`, so this is normally skipped.
+   813→
+   814→**`preVerifyToken()` (lines 203–249):** Calls `POST https://tgsoftware-api.online/api/fantasy/auth/verify` with `{ fantasyApp, authToken, matchId }` and `Authorization: Bearer ${bearerToken}` (8s timeout). Skipped entirely if `bearerToken.length < 20`. Returns `true`/`false`/`null` (null = can't verify, don't block).
+   815→
+   816→**Final payload built (lines 376–403):**
+   817→```ts
+   818→const payload: Record<string, unknown> = {
+   819→  matchId,
+   820→  captain: captainNum,
+   821→  vice_captain: viceCaptainNum,
+   822→  players: numericPlayerIds,
+   823→  fantasyApp: app,
+   824→  authToken: preparedToken,        // String(authToken)
+   825→  sportIndex: sport,
+   826→};
+   827→
+   828→if (operation === "edit" && id !== undefined && id !== null) {
+   829→  payload.id = id;
+   830→}
+   831→
+   832→if (app === "my11circle") {
+   833→  if (my11circleChallenge) payload.my11circleChallenge = my11circleChallenge;
+   834→  if (my11circleUserId)    payload.my11circleUserId    = my11circleUserId;
+   835→  if (my11circleMobile)    payload.my11circleMobile    = my11circleMobile;
+   836→}
+   837→
+   838→if (app === "vision11" && userId) {
+   839→  payload.userId = userId;
+   840→}
+   841→
+   842→if (mobileNumber) {
+   843→  payload.mobileNumber = mobileNumber;
+   844→}
+   845→```
+   846→
+   847→**NOTE:** `type` and `userToken` are NOT forwarded to the backend — they are consumed by this route.
+   848→
+   849→**Headers sent to backend (lines 433–436):**
+   850→```ts
+   851→const headers: Record<string, string> = { "Content-Type": "application/json" };
+   852→if (bearerToken && bearerToken.length >= 20) {
+   853→  headers["Authorization"] = `Bearer ${bearerToken}`;
+   854→}
+   855→```
+   856→So `Authorization` is **conditionally omitted** if no Bearer is available (bypass mode).
+   857→
+   858→**Fetch (lines 437–442):**
+   859→```ts
+   860→const res = await fetch(endpointUrl, {
+   861→  method: "POST",
+   862→  headers,
+   863→  body: JSON.stringify(payload),
+   864→  signal: AbortSignal.timeout(15000),   // 15s
+   865→});
+   866→```
+   867→
+   868→**Response handling per endpoint (lines 446–548):**
+   869→1. Read response as text, then JSON.parse.
+   870→2. Non-JSON or HTML/404 → log + skip to next endpoint.
+   871→3. Call `isTransferSuccess(res.status, data)`.
+   872→
+   873→**`isTransferSuccess()` (lines 68–79) — STRICT success criterion:**
+   874→```ts
+   875→function isTransferSuccess(_httpStatus: number, data: Record<string, unknown>): {
+   876→  success: boolean;
+   877→  confidence: 'definite' | 'tentative';
+   878→} {
+   879→  // ONLY explicit `status: "success"` is a real success (matches original APK)
+   880→  if (data.status === "success") {
+   881→    return { success: true, confidence: 'definite' };
+   882→  }
+   883→  // Everything else is a failure — including HTTP 201 + "Something Went Wrong!"
+   884→  return { success: false, confidence: 'definite' };
+   885→}
+   886→```
+   887→**IMPORTANT:** This was a deliberate fix. The comment block (lines 53–67) explains:
+   888→> The original APK ONLY counts `data.status === "success"` as success.
+   889→> Everything else — including HTTP 201 + `{status:"fail", message:"Something Went Wrong!"}` — is a FAILURE.
+   890→> The team was NOT created on the platform.
+   891→> Previously this code incorrectly treated HTTP 201 + "Something Went Wrong!" as a "tentative success". That was a false assumption — the backend returns 201 when the platform rejected the request (missing/expired Bearer token, invalid authToken, etc).
+   892→
+   893→**On success (lines 476–499):**
+   894→- Decrypt `data.data` if it's an AES-encrypted string.
+   895→- Return:
+   896→```ts
+   897→{
+   898→  status: "success",
+   899→  method: endpointUrl.includes("classic") ? "classic" : "fantasy",
+   900→  endpoint: endpointUrl,
+   901→  platform: app,
+   902→  operation: operation,
+   903→  data: responseData || null,
+   904→  httpStatus: res.status,
+   905→  confidence: transferResult.confidence,
+   906→  message: "Team added on <app> successfully" | "Team replaced on <app> successfully",
+   907→}
+   908→```
+   909→
+   910→**On failure — confirmed token expiry check (`isConfirmedTokenExpiry`, lines 19–51):**
+   911→The following error strings (case-insensitive, substring match) trigger immediate `TOKEN_EXPIRED`:
+   912→- `invalid token`, `token expired`, `token is expired`, `access token expired`
+   913→- `jwt expired`, `jwt malformed`, `invalid jwt`
+   914→- `authentication failed`, `auth token invalid`
+   915→- `login required`, `user not authenticated`, `not authenticated`, `session expired`
+   916→- `account locked`, `expired token`, `invalid or expired`
+   917→- `proxy returned 400`, `proxy returned 401`, `proxy returned 403`
+   918→- Also: `data.validToken === false && data.status === "fail"` → true
+   919→
+   920→On confirmed expiry → return `{ status:"fail", code:"TOKEN_EXPIRED", needsReauth:true, backendError: lastError }`.
+   921→
+   922→**On failure — deadline (lines 521–529):**
+   923→Error message contains `deadline`, `match expired`, or `match started` → `DEADLINE_PASSED`.
+   924→
+   925→**On failure — team limit (lines 532–539):**
+   926→Error message contains `limit`, `maximum`, or `already` → `TEAM_LIMIT_REACHED`.
+   927→
+   928→**On HTTP 404 (lines 542–545):** skip to next endpoint in the chain.
+   929→
+   930→**Edit-fallback-to-add (lines 561–650):**
+   931→If `operation === "edit"` and all edit endpoints failed (and the failure was NOT a confirmed token expiry), the route tries the add endpoints as a fallback:
+   932→```ts
+   933→const fallbackPayload = { ...payload };
+   934→delete fallbackPayload.id;
+   935→fallbackPayload.type = "new";
+   936→
+   937→for (const fallbackUrl of addEndpoints) {
+   938→  // POST with Authorization header (forced here, even in bypass mode)
+   939→  const fallbackRes = await fetch(fallbackUrl, {
+   940→    method: "POST",
+   941→    headers: {
+   942→      "Content-Type": "application/json",
+   943→      "Authorization": `Bearer ${bearerToken}`,   // <-- NOTE: forced here even if empty
+   944→    },
+   945→    body: JSON.stringify(fallbackPayload),
+   946→    signal: AbortSignal.timeout(30000),
+   947→  });
+   948→  // ... same isTransferSuccess check ...
+   949→}
+   950→```
+   951→**Quirk:** The fallback branch always sets `Authorization: Bearer <bearerToken>` — even if `bearerToken` is empty (which would send `Authorization: Bearer ` literally). This is an inconsistency vs. the main branch (which omits the header in bypass mode).
+   952→
+   953→**Final failure response (lines 661–695):**
+   954→Friendly error mapping:
+   955→- `"All proxy attempts failed"` → "The <app> server rejected the transfer. Your session may have expired..."
+   956→- `"Something Went Wrong!"` → "The <app> server returned an error. Your session has likely expired..."
+   957→- `"Proxy returned 400"` → "Your <app> session has expired (the platform rejected the request)..."
+   958→- `"Error while transfering the team!"` → "Failed to transfer team on <app>..."
+   959→- Non-JSON + `lastHttpStatus === 0` → "Could not reach the <app> transfer server..."
+   960→
+   961→Final failure shape:
+   962→```ts
+   963→{
+   964→  status: "fail",
+   965→  error: displayError,
+   966→  code: "TRANSFER_ERROR",
+   967→  needsReauth: false,
+   968→  backendError: lastError,
+   969→  httpStatus: lastHttpStatus,
+   970→  platform: app,
+   971→  operation: operation,
+   972→  endpointsTried: endpointChain,
+   973→  details: {
+   974→    matchId: String(matchId),
+   975→    captain: captainNum,
+   976→    vice_captain: viceCaptainNum,
+   977→    playerCount: numericPlayerIds.length,
+   978→    teamId: id || null,
+   979→    tokenLength: preparedToken.length,
+   980→    tokenIsJWT: preparedToken.startsWith("eyJ"),
+   981→    tokenIsJSON: preparedToken.startsWith("{"),
+   982→  },
+   983→}
+   984→```
+   985→
+   986→---
+   987→
+   988→## 2. Complete transfer payloads per platform
+   989→
+   990→All payloads are POSTed to `https://tgsoftware-api.online/api/fantasy/add-team` (add) or `/api/fantasy/edit-team` (edit). Dream11 add also has a fallback to `/api/classic/dream11/addteam`.
+   991→
+   992→### 2.1 Dream11 — ADD new team
+   993→
+   994→**Endpoint:** `POST https://tgsoftware-api.online/api/fantasy/add-team`
+   995→(Fallback: `POST https://tgsoftware-api.online/api/classic/dream11/addteam`)
+   996→
+   997→**Headers:**
+   998→```
+   999→Content-Type: application/json
+  1000→Authorization: Bearer <userToken>   (OPTIONAL — only if bearerToken.length >= 20)
+  1001→```
+  1002→
+  1003→**Body:**
+  1004→```json
+  1005→{
+  1006→  "matchId": "674ab1234def56789abc0123",
+  1007→  "captain": 12345,
+  1008→  "vice_captain": 67890,
+  1009→  "players": [12345, 67890, 11111, 22222, 33333, 44444, 55555, 66666, 77777, 88888, 99999],
+  1010→  "fantasyApp": "dream11",
+  1011→  "authToken": "eyJhbGciOiJIUzI1NiIs...<FULL token string, possibly JSON-wrapped>",
+  1012→  "sportIndex": 0
+  1013→}
+  1014→```
+  1015→
+  1016→Field types:
+  1017→- `matchId`: string (Mongo ObjectId-style)
+  1018→- `captain`: **number** (the player's Dream11 fantasy ID)
+  1019→- `vice_captain`: **number** (the player's Dream11 fantasy ID)
+  1020→- `players`: **number[]** (≥11 Dream11 fantasy IDs)
+  1021→- `fantasyApp`: literal string `"dream11"`
+  1022→- `authToken`: string (FULL token from verify-otp, may be a JSON string like `{"accessToken":"...","refreshToken":"..."}`)
+  1023→- `sportIndex`: number (0 = cricket, 1 = football, 2 = basketball, 3 = kabaddi)
+  1024→
+  1025→### 2.2 Dream11 — EDIT/REPLACE existing team
+  1026→
+  1027→**Endpoint:** `POST https://tgsoftware-api.online/api/fantasy/edit-team`
+  1028→
+  1029→**Headers:** same as add (Authorization conditional).
+  1030→
+  1031→**Body:**
+  1032→```json
+  1033→{
+  1034→  "matchId": "674ab1234def56789abc0123",
+  1035→  "captain": 12345,
+  1036→  "vice_captain": 67890,
+  1037→  "players": [12345, 67890, 11111, 22222, 33333, 44444, 55555, 66666, 77777, 88888, 99999],
+  1038→  "fantasyApp": "dream11",
+  1039→  "authToken": "<FULL token>",
+  1040→  "sportIndex": 0,
+  1041→  "id": "674ab1234def56789abc0123_team_1"
+  1042→}
+  1043→```
+  1044→The extra `id` field is the existing team's `team_id` from `list-of-teams`.
+  1045→
+  1046→### 2.3 My11Circle — ADD new team
+  1047→
+  1048→**Endpoint:** `POST https://tgsoftware-api.online/api/fantasy/add-team`
+  1049→
+  1050→**Headers:**
+  1051→```
+  1052→Content-Type: application/json
+  1053→Authorization: Bearer <userToken>   (OPTIONAL)
+  1054→```
+  1055→
+  1056→**Body:**
+  1057→```json
+  1058→{
+  1059→  "matchId": "674ab1234def56789abc0123",
+  1060→  "captain": 98765,
+  1061→  "vice_captain": 43210,
+  1062→  "players": [98765, 43210, 13579, 24680, ...11+ IDs],
+  1063→  "fantasyApp": "my11circle",
+  1064→  "authToken": "<FULL token>",
+  1065→  "sportIndex": 0,
+  1066→  "my11circleChallenge": "<challenge-from-verify-otp>",
+  1067→  "my11circleUserId": "<my11circleUserId-from-verify-otp>",
+  1068→  "my11circleMobile": "9876543210"
+  1069→}
+  1070→```
+  1071→
+  1072→### 2.4 My11Circle — EDIT/REPLACE existing team
+  1073→
+  1074→**Endpoint:** `POST https://tgsoftware-api.online/api/fantasy/edit-team`
+  1075→
+  1076→**Headers:** same as add.
+  1077→
+  1078→**Body:** same as My11Circle add, PLUS:
+  1079→```json
+  1080→{
+  1081→  ...same fields as add...,
+  1082→  "id": "<existing-team-id>"
+  1083→}
+  1084→```
+  1085→
+  1086→### 2.5 Jumbo — ADD new team
+  1087→
+  1088→**Endpoint:** `POST https://tgsoftware-api.online/api/fantasy/add-team`
+  1089→
+  1090→**Headers:**
+  1091→```
+  1092→Content-Type: application/json
+  1093→Authorization: Bearer <userToken>   (OPTIONAL)
+  1094→```
+  1095→
+  1096→**Body:**
+  1097→```json
+  1098→{
+  1099→  "matchId": "674ab1234def56789abc0123",
+  1100→  "captain": 55555,
+  1101→  "vice_captain": 66666,
+  1102→  "players": [55555, 66666, ...11+ IDs],
+  1103→  "fantasyApp": "jumbo",
+  1104→  "authToken": "<FULL token>",
+  1105→  "sportIndex": 0
+  1106→}
+  1107→```
+  1108→No platform-specific extra fields for Jumbo.
+  1109→
+  1110→### 2.6 Jumbo — EDIT/REPLACE existing team
+  1111→
+  1112→**Endpoint:** `POST https://tgsoftware-api.online/api/fantasy/edit-team`
+  1113→
+  1114→**Headers:** same.
+  1115→
+  1116→**Body:** same as Jumbo add, PLUS:
+  1117→```json
+  1118→{
+  1119→  ...same fields...,
+  1120→  "id": "<existing-team-id>"
+  1121→}
+  1122→```
+  1123→
+  1124→---
+  1125→
+  1126→## 3. Authorization / Bearer header requirement
+  1127→
+  1128→**Conditional / OPTIONAL on the main transfer path** (the working "bypass mode"):
+  1129→
+  1130→From `/tmp/real3/src/app/api/fantasy/transfer/route.ts` lines 342–351 and 433–436:
+  1131→```ts
+  1132→if (!bearerToken || bearerToken.length < 20) {
+  1133→  console.warn(`[Transfer][NO_BEARER] No Google JWT available for ${app}. Attempting transfer WITHOUT Bearer token (bypass mode). Backend may reject.`);
+  1134→  // Don't return — fall through and try the backend anyway
+  1135→}
+  1136→// ... later:
+  1137→const headers: Record<string, string> = { "Content-Type": "application/json" };
+  1138→if (bearerToken && bearerToken.length >= 20) {
+  1139→  headers["Authorization"] = `Bearer ${bearerToken}`;
+  1140→}
+  1141→```
+  1142→
+  1143→So: **`Authorization` header is OMITTED entirely if no Bearer is available.** The transfer is still attempted.
+  1144→
+  1145→**Required on these other endpoints:**
+  1146→- `/api/fantasy/list-of-teams` — always sends `Authorization: Bearer ${effectiveToken}` (even if `effectiveToken` is empty — sends `Bearer ` literally).
+  1147→- `/api/fantasy/auth/verify` (called by `preVerifyToken` AND `auth-verify` route) — always sends `Authorization: Bearer ${resolveBearerToken(userToken)}`.
+  1148→- `/api/fantasy/transfer`'s **edit→add fallback branch** (lines 578–584) — always sends `Authorization: Bearer ${bearerToken}` even in bypass mode (quirk — likely sends `Bearer ` if no token).
+  1149→
+  1150→**NOT sent on:**
+  1151→- `/api/fantasy/send-otp`
+  1152→- `/api/fantasy/verify-otp`
+  1153→- `/api/fantasy/classic-addteam`
+  1154→- `/api/fantasy/check-auth`
+  1155→
+  1156→---
+  1157→
+  1158→## 4. How `authToken` is obtained (OTP flow) and its exact format
+  1159→
+  1160→### 4.1 Flow
+  1161→
+  1162→1. User opens OTP dialog, enters 10-digit mobile number.
+  1163→2. Frontend POSTs `/api/fantasy/send-otp` with `{ fantasyApp, mobileNumber }`.
+  1164→3. Backend `tgsoftware-api.online/api/fantasy/send-otp` returns `{ status:"success", data:{ state?, reasonCode?, challenge?, login_auth_token?, userId? }, message }`.
+  1165→4. Frontend saves platform-specific fields (state for dream11, reasonCode/challenge for my11circle, login_auth_token for myteam11, userId for vision11).
+  1166→5. User enters 6-digit OTP.
+  1167→6. Frontend POSTs `/api/fantasy/verify-otp` with `{ fantasyApp, mobileNumber, verificationCode, [platform-specific fields] }`.
+  1168→7. Backend returns `{ status:"success", data: <possibly-AES-encrypted> }`.
+  1169→8. The Next.js verify-otp route:
+  1170→   - Decrypts `data.data` if string.
+  1171→   - Recursively searches for a token in keys: `token`, `authToken`, `access_token`, `accessToken`.
+  1172→   - Returns `{ status:"success", token: <RAW FULL token>, accessToken: <extracted JWT>, data, my11circleChallenge?, my11circleUserId? }`.
+  1173→9. Frontend stores `token` (the RAW token, NOT extracted `accessToken`) as `FantasyAccount.authToken` in localStorage `tg_multi_accounts`.
+  1174→
+  1175→### 4.2 Exact authToken format
+  1176→
+  1177→The authToken stored and sent to the transfer endpoint is the **RAW token string returned by the backend**, which may be in either of two forms:
+  1178→
+  1179→**(a) Plain JWT string:**
+  1180→```
+  1181→eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOi...
+  1182→```
+  1183→(Starts with `eyJ` — three base64-encoded JWT segments separated by dots.)
+  1184→
+  1185→**(b) JSON-wrapped token string:**
+  1186→```
+  1187→{"accessToken":"eyJhbGciOi...","refreshToken":"eyJhbGciOi...","idToken":"eyJhbGciOi..."}
+  1188→```
+  1189→(Starts with `{` — a JSON object serialized to a string.)
+  1190→
+  1191→**CRITICAL:** The verify-otp route comment (lines 194–202) explicitly states:
+  1192→> The backend's add-team endpoint expects the FULL JSON token like `{"accessToken":"eyJ...","refreshToken":"...","idToken":"..."}`, NOT just the extracted accessToken JWT. We were previously extracting just accessToken, which caused "Something Went Wrong!" errors.
+  1193→
+  1194→So the authToken sent to `/api/fantasy/add-team` is the FULL raw token (form (b) if the backend returned JSON, form (a) if the backend returned a plain JWT).
+  1195→
+  1196→The transfer route logs token shape via:
+  1197→```ts
+  1198→console.log(`[Transfer][REQUEST] authToken: len=${preparedToken.length}, isJWT=${preparedToken.startsWith("eyJ")}, isJSON=${preparedToken.startsWith("{")}`);
+  1199→```
+  1200→
+  1201→---
+  1202→
+  1203→## 5. How existing teams are fetched (`list-of-teams`)
+  1204→
+  1205→**Frontend call (TeamTransferScreen.tsx lines 67–77):**
+  1206→```ts
+  1207→const res = await fetch("/api/fantasy/list-of-teams", {
+  1208→  method: "POST",
+  1209→  headers: { "Content-Type": "application/json" },
+  1210→  body: JSON.stringify({
+  1211→    fantasyApp: platform,
+  1212→    matchId,
+  1213→    authToken: currentAccount.authToken,
+  1214→    userId: currentAccount.userId,
+  1215→    userToken: getUserToken(),
+  1216→  }),
+  1217→});
+  1218→const data = await res.json();
+  1219→if (data.status === "success" && Array.isArray(data.teams_list)) {
+  1220→  setExistingTeams(data.teams_list);
+  1221→}
+  1222→```
+  1223→
+  1224→**Next.js route forwards to backend** with platform-specific endpoint selection:
+  1225→- dream11 → tries `https://tgsoftware-api.online/api/fantasy/list-of-teams` AND `https://tgsoftware-api.online/api/classic/dream11/list-of-teams` in parallel (`Promise.any`).
+  1226→- my11circle → tries `https://tgsoftware-api.online/api/fantasy/list-of-teams` AND `https://tgsoftware-api.online/api/classic/my11circle/list-of-teams` in parallel.
+  1227→- jumbo → tries only `https://tgsoftware-api.online/api/fantasy/list-of-teams`.
+  1228→
+  1229→Backend payload:
+  1230→```json
+  1231→{
+  1232→  "fantasyApp": "dream11",
+  1233→  "matchId": "674ab1234def56789abc0123",
+  1234→  "authToken": "<FULL raw token>",
+  1235→  // my11circle also:
+  1236→  "my11circleChallenge": "<challenge>",
+  1237→  "my11circleUserId": "<userId>",
+  1238→  "my11circleMobile": "9876543210",
+  1239→  // vision11 also:
+  1240→  "userId": "<vision11-userId>"
+  1241→}
+  1242→```
+  1243→(All values cast via `String(...)` for my11circle/vision11 fields.)
+  1244→
+  1245→Headers: `Content-Type: application/json` + `Authorization: Bearer <effectiveToken>`.
+  1246→
+  1247→**Response parsing:** `data.status === "success"` → decrypt `data.data` (AES) if string → extract `rd.teams_list || data.teams_list`. Each team is `{ team_id: string, captain: number, vice_captain: number, player_list: number[] }`.
+  1248→
+  1249→**Failure handling:** If all endpoints fail, returns `{ status:"fail", teams_list: [] }`. The frontend then proceeds in "add" mode (no existing teams to edit).
+  1250→
+  1251→---
+  1252→
+  1253→## 6. Success / failure detection logic
+  1254→
+  1255→### 6.1 Backend transfer success criterion (transfer/route.ts `isTransferSuccess`)
+  1256→
+  1257→**SUCCESS = `data.status === "success"` (string equality, case-sensitive).**
+  1258→
+  1259→Everything else is a FAILURE — including:
+  1260→- HTTP 200 + `{ status:"fail", message:"..." }`
+  1261→- HTTP 201 + `{ status:"fail", message:"Something Went Wrong!" }` (this was previously misclassified as "tentative success"; the comment block explicitly documents the fix)
+  1262→- HTTP 4xx/5xx with any body
+  1263→
+  1264→The route logs `confidence: 'definite'` for both success and failure (no 'tentative' is ever returned by the current code — that branch was removed).
+  1265→
+  1266→### 6.2 Frontend success criterion (TeamTransferScreen.tsx executeTransferBatch)
+  1267→
+  1268→```ts
+  1269→const data = await res.json();
+  1270→if (data.status === "success") {
+  1271→  successCount++;
+  1272→  return { success: true, index: i };
+  1273→}
+  1274→```
+  1275→Identical to backend: only `data.status === "success"` counts.
+  1276→
+  1277→### 6.3 Token-expiry detection (transfer/route.ts `isConfirmedTokenExpiry`)
+  1278→
+  1279→Returns `true` if any of these substrings appear in the error message (case-insensitive):
+  1280→- `invalid token`, `token expired`, `token is expired`, `access token expired`
+  1281→- `jwt expired`, `jwt malformed`, `invalid jwt`
+  1282→- `authentication failed`, `auth token invalid`
+  1283→- `login required`, `user not authenticated`, `not authenticated`
+  1284→- `session expired`, `account locked`, `expired token`, `invalid or expired`
+  1285→- `proxy returned 400`, `proxy returned 401`, `proxy returned 403`
+  1286→
+  1287→Also: `data.validToken === false && data.status === "fail"` → true.
+  1288→
+  1289→On confirmed expiry → `code:"TOKEN_EXPIRED", needsReauth:true`.
+  1290→
+  1291→### 6.4 Other failure code mappings
+  1292→
+  1293→| Code | Trigger |
+  1294→|------|---------|
+  1295→| `NO_AUTH_TOKEN` | `authToken` missing in request body |
+  1296→| `MISSING_MATCH_ID` | `matchId` falsy |
+  1297→| `MISSING_CAPTAIN` | `captain` falsy or 0 |
+  1298→| `MISSING_VICE_CAPTAIN` | `vice_captain` falsy or 0 |
+  1299→| `MISSING_PLAYERS` | `players` not array or empty |
+  1300→| `INSUFFICIENT_PLAYERS` | `players.length < 11` |
+  1301→| `MISSING_FANTASY_APP` | `fantasyApp` falsy |
+  1302→| `MISSING_TEAM_ID` | `type === "edit"` and `id` falsy |
+  1303→| `INVALID_CAPTAIN_ID` | `captain` not coercible to number |
+  1304→| `INVALID_VICE_CAPTAIN_ID` | `vice_captain` not coercible to number |
+  1305→| `TOKEN_EXPIRED` | Confirmed token expiry (above) |
+  1306→| `DEADLINE_PASSED` | Error contains `deadline`, `match expired`, or `match started` |
+  1307→| `TEAM_LIMIT_REACHED` | Error contains `limit`, `maximum`, or `already` |
+  1308→| `TRANSFER_ERROR` | All endpoints failed, none of the above |
+  1309→| `SERVER_ERROR` | Uncaught exception in route handler |
+  1310→
+  1311→### 6.5 Displayed error mapping (transfer/route.ts lines 661–673)
+  1312→
+  1313→| Backend `lastError` | Displayed to user |
+  1314→|---|---|
+  1315→| `"All proxy attempts failed"` | `"The <app> server rejected the transfer. Your session may have expired. Please re-link your account via OTP verification and try again."` |
+  1316→| `"Something Went Wrong!"` | `"The <app> server returned an error. Your session has likely expired - please re-link your account via OTP verification."` |
+  1317→| `"Proxy returned 400"` | `"Your <app> session has expired (the platform rejected the request). Please re-link your account via OTP verification."` |
+  1318→| `"Error while transfering the team!"` | `"Failed to transfer team on <app>. Your auth session has likely expired. Try re-linking your <app> account via OTP verification."` |
+  1319→| Non-JSON + `lastHttpStatus === 0` | `"Could not reach the <app> transfer server. Please check your internet connection and try again."` |
+  1320→
+  1321→### 6.6 Frontend retry & stop conditions (executeTransferBatch)
+  1322→
+  1323→- Batch size = 5 teams in parallel.
+  1324→- Per-team max retries = 1 (so up to 2 attempts per team).
+  1325→- Inter-batch delay: 200 ms (dream11), 800 ms (my11circle), 500 ms (jumbo/others).
+  1326→- On `TOKEN_EXPIRED`: attempt `tryRefreshToken()` once. If refresh succeeds, update all remaining payloads' `authToken` and retry. If refresh fails, stop the whole batch.
+  1327→- On `DEADLINE_PASSED` or `TEAM_LIMIT_REACHED`: fail remaining teams in the batch (don't dispatch them).
+  1328→- Final toast:
+  1329→  - `successCount > 0` → "Transfer Complete! ✅ <n> teams transferred...". Refetch existing teams after 1 s.
+  1330→  - All fail + confirmed expiry → "Session Expired 🔐" toast (account data NOT cleared).
+  1331→  - All fail + proxy/token errors → "Transfer Failed — Re-link Required 🔄" toast.
+  1332→  - All fail other → "Transfer Failed" toast with first error message.
+  1333→
+  1334→---
+  1335→
+  1336→## 7. End-to-end flow summary
+  1337→
+  1338→1. **User links account:** OTPDialog → `send-otp` → `verify-otp` → `FantasyAccount.authToken` saved to `localStorage.tg_multi_accounts[platform][0]`.
+  1339→2. **User opens transfer screen:** `TeamTransferScreen` calls `fetchExistingTeams()` → `list-of-teams` → `existingTeams[]` populated, `presentTeamCount` and `newSlots` calculated (`maxTeams` = 11 for dream11, 40 for others).
+  1340→3. **User picks mode:** "all" / "newSlotsOnly" / "custom" (or replace-selected).
+  1341→4. **`buildTransferPayloads(mode)`** builds one payload per team. Captain/VC = fantasy IDs as numbers, players = `number[]` of fantasy IDs (≥11), `type: "edit"|"new"`, `id: existingTeam.team_id` for edits, `userToken: localStorage.user_token` (optional).
+  1342→5. **`executeTransferBatch(payloads)`** sends each payload (with `skipPreVerify: true`) to `/api/fantasy/transfer`.
+  1343→6. **`transfer/route.ts`** validates, resolves Bearer via `resolveBearerToken(userToken)`, builds the final backend payload (drops `type` and `userToken`), POSTs to the platform's `add-team`/`edit-team` endpoint chain.
+  1344→7. **Backend response:** Only `data.status === "success"` counts as success.
+  1345→8. **On token-expiry error:** Frontend tries `auth-verify` to refresh; if backend returns `updateUiToken + authToken`, updates localStorage and retries the failed team.
+  1346→9. **On success:** Toast + refetch existing teams after 1 s.
+  1347→
+  1348→---
+  1349→
+  1350→## 8. Key gotchas (must-know for any future refactor)
+  1351→
+  1352→1. **Captain/VC MUST be numbers** (the player's fantasy ID, not array index). Backend rejects strings.
+  1353→2. **authToken MUST be the FULL raw token** (JSON-wrapped if backend returned JSON). Extracting just `accessToken` causes "Something Went Wrong!".
+  1354→3. **`data.status === "success"` is the ONLY success criterion.** HTTP 201 + `{status:"fail"}` is a FAILURE.
+  1355→4. **Players array must have ≥ 11 numeric IDs.** Teams with fewer are skipped silently at frontend.
+  1356→5. **Dream11 has TWO add endpoints** (`/api/fantasy/add-team` first, then `/api/classic/dream11/addteam` as fallback). Others have only one.
+  1357→6. **list-of-teams runs endpoints in parallel** (`Promise.any`) — first success wins.
+  1358→7. **`Authorization: Bearer` is OPTIONAL** on the main transfer path (bypass mode). It is REQUIRED on `list-of-teams` and `auth-verify` (always sent, even if empty).
+  1359→8. **Edit→add fallback** (lines 561–650) deletes `payload.id`, sets `payload.type = "new"`, and forces `Authorization: Bearer ${bearerToken}` (even if empty — a quirk).
+  1360→9. **my11circle requires 3 extra fields:** `my11circleChallenge`, `my11circleUserId`, `my11circleMobile`. Without these, transfers fail.
+  1361→10. **`myteam11` uses `Loginauthtoken`** (capital L) in verify-otp — original APK quirk preserved.
+  1362→11. **`sportIndex`:** 0=cricket, 1=football, 2=basketball, 3=kabaddi. Defaults to 0.
+  1363→12. **`maxTeams`:** dream11 = 11, my11circle/jumbo = 40.
+  1364→13. **Frontend batch size = 5** with per-platform delays (200/800/500 ms). Backend per-endpoint timeout = 15 s (main) or 30 s (fallback).
+  1365→14. **Token refresh:** Only attempted ONCE per team. If `tryRefreshToken()` fails, all remaining teams in the batch are failed.
+  1366→15. **`skipPreVerify: true`** is sent by frontend on every transfer request — pre-verification is bypassed for speed. Token expiry is detected reactively.
+  1367→
+  1368→---
+  1369→
+  1370→End of specification. Every fact above is quoted or paraphrased directly from `/tmp/real3/src/`. No guesses.
+  1371→

@@ -5,433 +5,307 @@ export const dynamic = "force-dynamic";
 
 const BACKEND = "https://tgsoftware-api.online";
 
-const PLATFORM_LIMITS: Record<string, number> = {
-  dream11: 40,
-  my11circle: 40,
-  jumbo: 50,
-};
-
+// Platform endpoint config — EXACT match to original source
 const PLATFORM_ENDPOINTS: Record<string, { add: string[]; edit: string[] }> = {
   dream11: {
-    add: ["/api/fantasy/add-team", "/api/classic/dream11/addteam"],
-    edit: ["/api/fantasy/edit-team"],
+    add: [`${BACKEND}/api/fantasy/add-team`, `${BACKEND}/api/classic/dream11/addteam`],
+    edit: [`${BACKEND}/api/fantasy/edit-team`],
   },
   my11circle: {
-    add: ["/api/fantasy/add-team"],
-    edit: ["/api/fantasy/edit-team"],
+    add: [`${BACKEND}/api/fantasy/add-team`],
+    edit: [`${BACKEND}/api/fantasy/edit-team`],
   },
   jumbo: {
-    add: ["/api/fantasy/add-team"],
-    edit: ["/api/fantasy/edit-team"],
+    add: [`${BACKEND}/api/fantasy/add-team`],
+    edit: [`${BACKEND}/api/fantasy/edit-team`],
   },
 };
-
 const DEFAULT_ENDPOINTS = {
-  add: ["/api/fantasy/add-team"],
-  edit: ["/api/fantasy/edit-team"],
+  add: [`${BACKEND}/api/fantasy/add-team`],
+  edit: [`${BACKEND}/api/fantasy/edit-team`],
 };
 
-const LIST_ENDPOINTS: Record<string, string[]> = {
-  dream11: ["/api/fantasy/list-of-teams", "/api/classic/dream11/list-of-teams"],
-  my11circle: ["/api/fantasy/list-of-teams", "/api/classic/my11circle/list-of-teams"],
-  jumbo: ["/api/fantasy/list-of-teams"],
+// maxTeams per platform — EXACT match to TeamTransferScreen.tsx line 565
+const MAX_TEAMS: Record<string, number> = {
+  dream11: 11,
+  my11circle: 40,
+  jumbo: 40,
 };
 
-function isTokenExpired(errorMsg: string, data: any): boolean {
-  const lower = (errorMsg || "").toLowerCase();
+// Token expiry detection — EXACT match to original
+function isConfirmedTokenExpiry(msg: string, data: any): boolean {
+  const lower = (msg || "").toLowerCase().trim();
   const confirmed = [
-    "invalid token",
-    "token expired",
-    "session expired",
-    "auth token invalid",
-    "login required",
-    "not authenticated",
-    "expired token",
-    "invalid or expired",
-    "proxy returned 400",
-    "proxy returned 401",
-    "proxy returned 403",
+    "invalid token", "token expired", "token is expired", "access token expired",
+    "jwt expired", "jwt malformed", "invalid jwt", "authentication failed",
+    "auth token invalid", "login required", "user not authenticated",
+    "not authenticated", "session expired", "account locked", "expired token",
+    "invalid or expired", "proxy returned 400", "proxy returned 401", "proxy returned 403",
   ];
   for (const c of confirmed) if (lower.includes(c)) return true;
   if (data?.validToken === false && data?.status === "fail") return true;
   return false;
 }
 
-// Fetch existing teams on the fantasy platform for this match
-async function fetchExistingTeams(
-  fantasyApp: string,
-  matchId: string,
-  authToken: string,
-  account?: any
-): Promise<any[]> {
-  // Send token AS-IS (matching original teamgeneration.in)
-  // Do NOT extract accessToken — the backend expects the full token
-  const endpoints = LIST_ENDPOINTS[fantasyApp] || ["/api/fantasy/list-of-teams"];
-  const payload: Record<string, unknown> = {
-    fantasyApp,
-    matchId: String(matchId),
-    authToken,
-  };
-  // My11Circle-specific fields
-  if (fantasyApp === "my11circle" && account) {
-    if (account.my11circleChallenge) payload.my11circleChallenge = account.my11circleChallenge;
-    if (account.my11circleUserId) payload.my11circleUserId = account.my11circleUserId;
-    if (account.mobileNumber) payload.my11circleMobile = account.mobileNumber;
+// Get platform-specific fantasy ID
+function getPlatformId(p: any, platform: string): number {
+  if (typeof p === "number") return p;
+  if (p.fantasyIdList && Array.isArray(p.fantasyIdList)) {
+    const found = p.fantasyIdList.find((f: any) => f.name === platform);
+    if (found && found.id) return found.id;
   }
-  for (const endpoint of endpoints) {
-    try {
-      const res = await fetch(`${BACKEND}${endpoint}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Origin: "https://teamgeneration.in",
-          Referer: "https://teamgeneration.in/",
-        },
-        body: JSON.stringify(payload),
-        cache: "no-store",
-      });
-      const data = await res.json().catch(() => ({}));
-      if (data?.status === "success" && Array.isArray(data.teams_list)) {
-        return data.teams_list;
-      }
-      const lower = (data?.message || "").toLowerCase();
-      if (lower.includes("invalid token") || lower.includes("token expired")) break;
-    } catch {
-      /* try next */
-    }
+  return p.fantasyId || 0;
+}
+
+// toNumber — EXACT match to original
+function toNumber(val: unknown): number | null {
+  if (typeof val === "number" && !isNaN(val)) return val;
+  if (typeof val === "string") {
+    const n = parseInt(val, 10);
+    return isNaN(n) ? null : n;
   }
-  return [];
+  return null;
 }
 
 interface TransferReq {
+  authToken?: string;
   matchId?: string;
+  captain?: number;
+  vice_captain?: number;
+  players?: number[];
   fantasyApp?: string;
-  teams?: any[];
-  mode?: "all" | "newOnly" | "custom" | "replace";
-  customReplaceCount?: number;
-  customAddCount?: number;
-  replaceTeamId?: number;
-  userToken?: string; // Google OAuth JWT for Bearer auth
+  sportIndex?: number;
+  type?: string;
+  id?: string;
+  mobileNumber?: string;
+  userId?: string;
+  my11circleChallenge?: string;
+  my11circleUserId?: string;
+  my11circleMobile?: string;
+  userToken?: string;
 }
 
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as TransferReq;
     const {
+      authToken,
       matchId,
+      captain,
+      vice_captain,
+      players,
       fantasyApp = "dream11",
-      teams = [],
-      mode = "all",
-      customReplaceCount = 0,
-      customAddCount = 0,
-      replaceTeamId,
+      sportIndex = 0,
+      type,
+      id,
+      mobileNumber,
+      my11circleChallenge,
+      my11circleUserId,
+      my11circleMobile,
       userToken,
     } = body;
 
-    if (!matchId) {
-      return NextResponse.json(
-        { status: "error", message: "matchId is required" },
-        { status: 400 }
-      );
-    }
-
-    const store = await cookies();
-    const raw = store.get(`tg_fantasy_${fantasyApp}`)?.value;
-    if (!raw) {
-      return NextResponse.json(
-        {
-          status: "error",
-          message: `${fantasyApp} account not linked. Please login with OTP first.`,
-          code: "NOT_LINKED",
-        },
-        { status: 401 }
-      );
-    }
-
-    let account;
-    try {
-      account = JSON.parse(Buffer.from(raw, "base64").toString("utf-8"));
-    } catch {
-      return NextResponse.json(
-        { status: "error", message: "Invalid account session", code: "INVALID_SESSION" },
-        { status: 401 }
-      );
-    }
-
-    const authToken = account.authToken;
+    // Validation — EXACT match to original
     if (!authToken) {
-      return NextResponse.json(
-        { status: "error", message: "No auth token", code: "NO_TOKEN" },
-        { status: 401 }
-      );
-    }
-
-    // Bearer token is OPTIONAL — transfers work with just authToken (from OTP).
-    // If userToken (Google JWT) is available, send it as Bearer for extra auth.
-    // If not available, transfer still works (bypass mode) with valid authToken.
-    const bearerToken = userToken || "";
-
-    const maxTeams = PLATFORM_LIMITS[fantasyApp] || 40;
-
-    // Fetch stored generated teams
-    const storedRaw = store.get(`tg_teams_${matchId}`)?.value;
-    let storedTeams: any[] = [];
-    if (storedRaw) {
-      try {
-        const parsed = JSON.parse(Buffer.from(storedRaw, "base64").toString("utf-8"));
-        storedTeams = parsed.teams || [];
-      } catch {
-        /* ignore */
-      }
-    }
-    const allTeamsMap = new Map<number, any>();
-    for (const t of storedTeams) allTeamsMap.set(t.team_number, t);
-    for (const t of teams) allTeamsMap.set(t.team_number, t);
-    const selectedTeams = (teams.length > 0 ? teams : storedTeams).slice(0, maxTeams);
-
-    if (selectedTeams.length === 0) {
       return NextResponse.json({
-        status: "error",
-        message: "No generated teams to transfer. Generate teams first.",
-        code: "NO_TEAMS",
+        status: "fail",
+        error: `Account not linked. Please link your ${fantasyApp} account first via OTP verification.`,
+        code: "NO_AUTH_TOKEN",
+        needsAuth: true,
       });
     }
-
-    // Fetch existing teams on the platform (for replace logic)
-    const existingTeams = await fetchExistingTeams(fantasyApp, matchId, authToken, account);
-    const presentTeamCount = existingTeams.length;
-    const newSlots = Math.max(0, maxTeams - presentTeamCount);
-
-    // Decide how many to edit (replace) vs add (new) based on mode
-    let teamsToEdit: number;
-    let teamsToAdd: number;
-    if (mode === "newOnly") {
-      teamsToEdit = 0;
-      teamsToAdd = Math.min(selectedTeams.length, newSlots);
-    } else if (mode === "custom") {
-      teamsToEdit = Math.min(
-        Math.max(0, customReplaceCount),
-        presentTeamCount,
-        selectedTeams.length
-      );
-      teamsToAdd = Math.min(
-        Math.max(0, customAddCount),
-        newSlots,
-        selectedTeams.length - teamsToEdit
-      );
-    } else if (mode === "replace") {
-      // Replace a specific team ID
-      teamsToEdit = 1;
-      teamsToAdd = 0;
-    } else {
-      // mode === "all" (default): ADD new teams to empty slots FIRST,
-      // then replace existing teams for the remainder.
-      // This prioritizes adding new teams over replacing existing ones.
-      teamsToAdd = Math.min(selectedTeams.length, newSlots);
-      teamsToEdit = Math.min(
-        selectedTeams.length - teamsToAdd,
-        presentTeamCount
-      );
+    if (!matchId) {
+      return NextResponse.json({ status: "fail", error: "Match ID is required for transfer", code: "MISSING_MATCH_ID" });
     }
 
-    const config = PLATFORM_ENDPOINTS[fantasyApp] || DEFAULT_ENDPOINTS;
-    const transferred: any[] = [];
-    const failed: any[] = [];
-    const totalToProcess = teamsToEdit + teamsToAdd;
+    const captainNum = toNumber(captain);
+    const viceCaptainNum = toNumber(vice_captain);
 
-    // Helper: get the platform-specific fantasy ID for a player
-    const getPlatformId = (p: any, platform: string): number => {
-      if (typeof p === "number") return p;
-      // Check fantasyIdList for the specific platform
-      if (p.fantasyIdList && Array.isArray(p.fantasyIdList)) {
-        const found = p.fantasyIdList.find(
-          (f: any) => f.name === platform
-        );
-        if (found && found.id) return found.id;
-      }
-      // Fall back to default fantasyId (Dream11)
-      return p.fantasyId || 0;
+    if (captainNum === null) {
+      return NextResponse.json({ status: "fail", error: `Invalid captain ID`, code: "INVALID_CAPTAIN_ID" });
+    }
+    if (viceCaptainNum === null) {
+      return NextResponse.json({ status: "fail", error: `Invalid vice-captain ID`, code: "INVALID_VICE_CAPTAIN_ID" });
+    }
+    if (!captainNum) {
+      return NextResponse.json({ status: "fail", error: "Captain is required", code: "MISSING_CAPTAIN" });
+    }
+    if (!viceCaptainNum) {
+      return NextResponse.json({ status: "fail", error: "Vice-captain is required", code: "MISSING_VICE_CAPTAIN" });
+    }
+
+    // Parse player IDs
+    let playerIds: number[];
+    if (typeof players === "string") {
+      playerIds = players.split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n) && n > 0);
+    } else if (Array.isArray(players)) {
+      playerIds = players.map((p) => typeof p === "number" ? p : parseInt(String(p), 10)).filter((n) => !isNaN(n) && n > 0);
+    } else {
+      playerIds = [];
+    }
+
+    if (playerIds.length === 0) {
+      return NextResponse.json({ status: "fail", error: "Players are required", code: "MISSING_PLAYERS" });
+    }
+    if (playerIds.length < 11) {
+      return NextResponse.json({ status: "fail", error: `Need at least 11 players (have ${playerIds.length})`, code: "INSUFFICIENT_PLAYERS" });
+    }
+
+    const app = fantasyApp || "dream11";
+    const sport = typeof sportIndex === "number" ? sportIndex : 0;
+    const operation: "add" | "edit" = type === "edit" ? "edit" : "add";
+
+    if (operation === "edit" && !id) {
+      return NextResponse.json({ status: "fail", error: "Team ID is required for edit/replace operations", code: "MISSING_TEAM_ID" });
+    }
+
+    // Bearer token — OPTIONAL (bypass mode works without it)
+    const bearerToken = userToken || "";
+
+    // Build the BACKEND payload — EXACT match to original source (NO type, NO mobileNumber)
+    const preparedToken = String(authToken);
+    const payload: Record<string, unknown> = {
+      matchId: matchId,
+      captain: captainNum,
+      vice_captain: viceCaptainNum,
+      players: playerIds,
+      fantasyApp: app,
+      authToken: preparedToken,
+      sportIndex: sport,
     };
 
-    // Platform-specific delay between transfers to avoid rate limiting
-    // My11Circle is VERY strict: "We are still processing your last request"
-    // Needs 3+ seconds between transfers (was 800ms, caused 6/10 failures)
-    const transferDelay = fantasyApp === "my11circle" ? 3000 : fantasyApp === "jumbo" ? 1000 : 300;
+    // For edit, include id
+    if (operation === "edit" && id !== undefined && id !== null) {
+      payload.id = id;
+    }
 
-    for (let i = 0; i < totalToProcess; i++) {
-      // Delay between teams (skip on first team)
-      if (i > 0) await new Promise((r) => setTimeout(r, transferDelay));
+    // My11Circle-specific fields
+    if (app === "my11circle") {
+      if (my11circleChallenge) payload.my11circleChallenge = my11circleChallenge;
+      if (my11circleUserId) payload.my11circleUserId = my11circleUserId;
+      if (my11circleMobile) payload.my11circleMobile = my11circleMobile;
+    }
 
-      const team = selectedTeams[i];
-      const isEdit = i < teamsToEdit;
+    if (app === "vision11" && mobileNumber) {
+      payload.userId = mobileNumber;
+    }
 
-      // Extract numeric player IDs FOR THIS PLATFORM (not just Dream11)
-      const playerIds: number[] = (team.players || [])
-        .map((p: any) => getPlatformId(p, fantasyApp))
-        .filter((id: number) => id > 0);
+    // Get endpoint chain
+    const config = PLATFORM_ENDPOINTS[app] || DEFAULT_ENDPOINTS;
+    const endpointChain = operation === "edit" ? config.edit : config.add;
 
-      if (playerIds.length < 11) {
-        failed.push({
-          team_number: team.team_number,
-          error: `Only ${playerIds.length} players with ${fantasyApp} IDs (need 11). Some players may not be available on ${fantasyApp}.`,
+    console.log(`[Transfer] ${app} ${operation.toUpperCase()}: matchId=${matchId}, C=${captainNum}, VC=${viceCaptainNum}, players=${playerIds.length}, id=${id || "N/A"}`);
+
+    // Execute with multi-endpoint fallback
+    let lastError = "";
+    let lastData: Record<string, unknown> | null = null;
+
+    for (const endpointUrl of endpointChain) {
+      try {
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        // Only include Authorization if we have a valid Bearer token
+        if (bearerToken && bearerToken.length >= 20) {
+          headers["Authorization"] = `Bearer ${bearerToken}`;
+        }
+
+        const res = await fetch(endpointUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(15000),
         });
+
+        const responseText = await res.text();
+        let data: Record<string, unknown>;
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          lastError = `Server returned non-JSON response (HTTP ${res.status})`;
+          continue;
+        }
+
+        console.log(`[Transfer] Response: status=${data.status}, message=${data.message || "N/A"}, http=${res.status}`);
+
+        // SUCCESS: ONLY data.status === "success" (EXACT match to original)
+        if (data.status === "success") {
+          return NextResponse.json({
+            status: "success",
+            platform: app,
+            operation,
+            message: `Team ${operation === "edit" ? "replaced" : "added"} on ${app} successfully`,
+          });
+        }
+
+        // Handle failure
+        lastError = (data.message as string) || (data.error as string) || `HTTP ${res.status}`;
+        lastData = data;
+
+        // Token expiry → stop immediately
+        if (isConfirmedTokenExpiry(lastError, data)) {
+          return NextResponse.json({
+            status: "fail",
+            error: `Session expired on ${app}. Please re-link your account via OTP.`,
+            code: "TOKEN_EXPIRED",
+            needsReauth: true,
+            backendError: lastError,
+          });
+        }
+
+        // Deadline passed
+        const lowerMsg = lastError.toLowerCase();
+        if (lowerMsg.includes("deadline") || lowerMsg.includes("match expired") || lowerMsg.includes("match started")) {
+          return NextResponse.json({
+            status: "fail",
+            error: "Match deadline has passed.",
+            code: "DEADLINE_PASSED",
+            backendError: lastError,
+          });
+        }
+
+        // Team limit reached
+        if (lowerMsg.includes("limit") || lowerMsg.includes("maximum") || lowerMsg.includes("already")) {
+          return NextResponse.json({
+            status: "fail",
+            error: `Team limit reached on ${app}.`,
+            code: "TEAM_LIMIT_REACHED",
+            backendError: lastError,
+          });
+        }
+
+        // Rate limiting
+        if (lowerMsg.includes("still processing") || lowerMsg.includes("try again later")) {
+          return NextResponse.json({
+            status: "fail",
+            error: "We are still processing your last request. Please try again later.",
+            code: "RATE_LIMITED",
+            retryable: true,
+            backendError: lastError,
+          });
+        }
+
+        // 404 → try next endpoint
+        if (res.status === 404) continue;
+        // Other errors → try next endpoint
         continue;
-      }
 
-      const captainPlayer = team.captain;
-      const vcPlayer = team.vicecaptain;
-      const captainId =
-        typeof captainPlayer === "object"
-          ? getPlatformId(captainPlayer, fantasyApp)
-          : captainPlayer || 0;
-      const viceCaptainId =
-        typeof vcPlayer === "object"
-          ? getPlatformId(vcPlayer, fantasyApp)
-          : vcPlayer || 0;
-
-      if (!captainId || !viceCaptainId) {
-        failed.push({
-          team_number: team.team_number,
-          error: "Invalid captain/vice-captain IDs.",
-        });
+      } catch (fetchErr) {
+        const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+        lastError = errMsg.includes("timeout") ? "Transfer request timed out" : `Network error: ${errMsg}`;
         continue;
-      }
-
-      // For edit: use the existing team's ID (or the specified replaceTeamId)
-      let existingTeamId: string | number | undefined;
-      if (isEdit) {
-        if (mode === "replace" && replaceTeamId) {
-          existingTeamId = replaceTeamId;
-        } else if (existingTeams[i]) {
-          existingTeamId = existingTeams[i].team_id;
-        }
-      }
-
-      // Debug: log the platform-specific IDs being sent
-      console.log(`[Transfer][${fantasyApp}] Team ${team.team_number}: players=${JSON.stringify(playerIds)}, captain=${captainId}, vice_captain=${viceCaptainId}, isEdit=${isEdit}, existingTeamId=${existingTeamId || "N/A"}, hasChallenge=${!!account.my11circleChallenge}, hasUserId=${!!account.my11circleUserId}`);
-
-      // Send token AS-IS — backend expects the full raw token
-      const payload: Record<string, unknown> = {
-        matchId,
-        captain: captainId,
-        vice_captain: viceCaptainId,
-        players: playerIds,
-        fantasyApp,
-        authToken,
-        sportIndex: 0,
-        type: isEdit ? "edit" : "new",
-      };
-      if (isEdit && existingTeamId !== undefined) {
-        payload.id = existingTeamId;
-        payload.team_id = existingTeamId;
-      }
-      // My11Circle-specific fields
-      if (fantasyApp === "my11circle") {
-        if (account.my11circleChallenge) payload.my11circleChallenge = String(account.my11circleChallenge);
-        if (account.my11circleUserId) payload.my11circleUserId = String(account.my11circleUserId);
-        if (account.mobileNumber) payload.my11circleMobile = String(account.mobileNumber);
-      }
-      if (account.mobileNumber) payload.mobileNumber = account.mobileNumber;
-
-      const endpointChain = isEdit ? config.edit : config.add;
-      let teamTransferred = false;
-      let lastError = "Transfer failed";
-      const maxRateLimitRetries = 3;
-
-      // Try each endpoint, with retry on rate-limit
-      for (const endpoint of endpointChain) {
-        if (teamTransferred) break;
-
-        for (let attempt = 0; attempt < (maxRateLimitRetries + 1); attempt++) {
-          try {
-            const headers: Record<string, string> = {
-              "Content-Type": "application/json",
-              Origin: "https://teamgeneration.in",
-              Referer: "https://teamgeneration.in/",
-            };
-            if (bearerToken && bearerToken.length >= 20) {
-              headers["Authorization"] = `Bearer ${bearerToken}`;
-            }
-            const upRes = await fetch(`${BACKEND}${endpoint}`, {
-              method: "POST",
-              headers,
-              body: JSON.stringify(payload),
-              cache: "no-store",
-              signal: AbortSignal.timeout(15000),
-            });
-            const upData = await upRes.json().catch(() => ({}));
-
-            if (upData?.status === "success") {
-            transferred.push({
-              team_number: team.team_number,
-              status: "transferred",
-              operation: isEdit ? "edit" : "add",
-              existingTeamId: existingTeamId,
-            });
-            teamTransferred = true;
-            break;
-            } else {
-            lastError = upData?.message || upData?.error || "Transfer failed";
-            if (isTokenExpired(lastError, upData)) break; // stop on token expiry
-            const lower = lastError.toLowerCase();
-            // Rate limiting: wait 4s and retry (up to maxRateLimitRetries)
-            if (lower.includes("still processing") || lower.includes("try again later")) {
-              if (attempt < maxRateLimitRetries) {
-                console.log(`[Transfer][RATE_LIMIT] Team ${team.team_number} attempt ${attempt + 1}. Waiting 4s and retrying...`);
-                await new Promise((r) => setTimeout(r, 4000));
-                continue; // retry
-              }
-              break; // exhausted retries
-            }
-            break; // other error, try next endpoint
-          }
-        } catch (e) {
-          lastError = (e as Error).message;
-          break;
-        }
-        }
-      }
-
-      if (!teamTransferred) {
-        // Provide clear actionable error messages
-        let displayError = lastError;
-        const lower = lastError.toLowerCase();
-        if (lower.includes("something went wrong") || lower.includes("error while transfering")) {
-          displayError = `${fantasyApp} rejected the transfer. Please re-link your ${fantasyApp} account via OTP with a real phone number, then try again.`;
-        } else if (lower.includes("not part of the match")) {
-          displayError = `Player ID mismatch for ${fantasyApp}. Re-link your account and regenerate teams.`;
-        } else if (lower.includes("proxy returned 401") || lower.includes("token expired") || lower.includes("session expired")) {
-          displayError = `${fantasyApp} session expired. Please re-link via OTP.`;
-        } else if (lower.includes("still processing")) {
-          displayError = `${fantasyApp} is rate-limiting (retried 3x). Wait 60s and try again, or transfer fewer teams at once.`;
-        }
-        failed.push({ team_number: team.team_number, error: displayError });
       }
     }
 
-    const hash = `${fantasyApp}_${matchId}_${Date.now().toString(36)}`;
-    const verb = teamsToEdit > 0 ? "replaced/added" : "transferred";
-
+    // All endpoints failed
     return NextResponse.json({
-      status: transferred.length > 0 ? "success" : "error",
-      fantasyApp,
-      matchId,
-      hash,
-      account: { mobileNumber: account.mobileNumber, linked: true },
-      mode,
-      existingTeamsCount: presentTeamCount,
-      newSlots,
-      teamsToEdit,
-      teamsToAdd,
-      transferred: transferred.length,
-      teams: transferred,
-      failed,
-      message: `${transferred.length}/${totalToProcess} teams ${verb} (${teamsToEdit} edit, ${teamsToAdd} new)`,
-      transferredAt: Date.now(),
+      status: "fail",
+      error: lastError || "Transfer failed. Please try again.",
+      code: "TRANSFER_FAILED",
+      backendError: lastError,
     });
+
   } catch (e) {
     return NextResponse.json(
-      { status: "error", message: (e as Error).message },
+      { status: "fail", error: (e as Error).message },
       { status: 500 }
     );
   }

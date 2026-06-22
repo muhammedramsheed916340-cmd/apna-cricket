@@ -94,7 +94,8 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
   const linkedAccounts = accounts.filter((a) => a.linked);
   const currentAccount = linkedAccounts.find((a) => a.slug === selectedPlatform);
   const currentPlatform = FANTASY_PLATFORMS.find((p) => p.slug === selectedPlatform)!;
-  const limit = currentPlatform?.limit || 40;
+  // maxTeams per platform — EXACT match to original TeamTransferScreen.tsx
+  const limit = selectedPlatform === "dream11" ? 11 : 40;
   const presentTeamCount = existingTeams.length;
   const newSlots = Math.max(0, limit - presentTeamCount);
 
@@ -163,72 +164,144 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
     setProgressCurrent(0);
     setProgressTotal(storedTeams.length);
 
+    // Fetch existing teams FIRST to determine edit vs add
+    let existingTeamIds: string[] = [];
+    try {
+      let userToken = "";
+      try { userToken = localStorage.getItem("user_token") || ""; } catch {}
+      const listRes = await fetch("/api/fantasy/list-of-teams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fantasyApp: selectedPlatform, matchId, userToken }),
+      });
+      const listData = await listRes.json();
+      if (listData?.teams_list) {
+        existingTeamIds = listData.teams_list.map((t: any) => t.team_id);
+      }
+    } catch {}
+
+    const presentCount = existingTeamIds.length;
+    const maxTeams = selectedPlatform === "dream11" ? 11 : 40;
+    const newSlots = Math.max(0, maxTeams - presentCount);
+
+    // Determine how many to add vs edit
+    let teamsToAdd: number;
+    let teamsToEdit: number;
+    if (mode === "newOnly") {
+      teamsToAdd = Math.min(storedTeams.length, newSlots);
+      teamsToEdit = 0;
+    } else if (mode === "custom") {
+      teamsToEdit = Math.min(customReplaceCount, presentCount, storedTeams.length);
+      teamsToAdd = Math.min(customAddCount, newSlots, storedTeams.length - teamsToEdit);
+    } else {
+      // mode === "all": add new FIRST, then edit
+      teamsToAdd = Math.min(storedTeams.length, newSlots);
+      teamsToEdit = Math.min(storedTeams.length - teamsToAdd, presentCount);
+    }
+
+    const totalToProcess = teamsToAdd + teamsToEdit;
     const allTransferred: any[] = [];
     const allFailed: any[] = [];
     let stopped = false;
 
-    // Process teams ONE BY ONE with live progress
-    for (let i = 0; i < storedTeams.length; i++) {
+    // Process teams ONE BY ONE
+    for (let i = 0; i < totalToProcess; i++) {
       if (stopped) break;
       const team = storedTeams[i];
+      const isEdit = i >= teamsToAdd; // first teamsToAdd are NEW, rest are EDIT
       setProgressCurrent(i + 1);
-      setProgressTeam(`Team #${team.team_number} (${i + 1}/${storedTeams.length})`);
+      setProgressTeam(`Team #${team.team_number} (${i + 1}/${totalToProcess}) ${isEdit ? "REPLACE" : "NEW"}`);
 
       try {
-        // Get Google OAuth token from localStorage (needed for Bearer auth)
         let userToken = "";
         try { userToken = localStorage.getItem("user_token") || ""; } catch {}
+
+        // Get platform-specific fantasy IDs
+        const getPlatformId = (p: any): number => {
+          if (typeof p === "number") return p;
+          if (p?.fantasyIdList) {
+            const found = p.fantasyIdList.find((f: any) => f.name === selectedPlatform);
+            if (found?.id) return found.id;
+          }
+          return p?.fantasyId || 0;
+        };
+
+        const playerIds = (team.players || []).map((p: any) => getPlatformId(p)).filter((n: number) => n > 0);
+        const captainId = getPlatformId(team.captain) || playerIds[0] || 0;
+        const viceCaptainId = getPlatformId(team.vicecaptain) || playerIds[1] || 0;
+
+        if (playerIds.length < 11 || !captainId || !viceCaptainId) {
+          allFailed.push({ team_number: team.team_number, error: `Invalid team data (${playerIds.length} players)` });
+          setFailedTeams([...allFailed]);
+          continue;
+        }
+
+        // Build the EXACT payload the transfer API expects
+        const transferPayload: Record<string, unknown> = {
+          matchId,
+          fantasyApp: selectedPlatform,
+          captain: captainId,
+          vice_captain: viceCaptainId,
+          players: playerIds,
+          sportIndex: 0,
+          type: isEdit ? "edit" : "new",
+          userToken,
+        };
+
+        // For edit, include the existing team_id
+        if (isEdit) {
+          const editIndex = i - teamsToAdd;
+          if (existingTeamIds[editIndex]) {
+            transferPayload.id = existingTeamIds[editIndex];
+          }
+        }
+
+        // My11Circle fields from account
+        if (selectedPlatform === "my11circle" && currentAccount) {
+          if (currentAccount.my11circleChallenge) transferPayload.my11circleChallenge = currentAccount.my11circleChallenge;
+          if (currentAccount.my11circleUserId) transferPayload.my11circleUserId = currentAccount.my11circleUserId;
+          if (currentAccount.mobileNumber) transferPayload.my11circleMobile = currentAccount.mobileNumber;
+        }
+        if (currentAccount?.mobileNumber) transferPayload.mobileNumber = currentAccount.mobileNumber;
 
         const res = await fetch("/api/transfer", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            matchId,
-            fantasyApp: selectedPlatform,
-            mode,
-            teams: [team],
-            customReplaceCount,
-            customAddCount,
-            userToken,
-            ...extra,
-          }),
+          body: JSON.stringify(transferPayload),
         });
         const data = await res.json();
 
         if (data?.status === "success") {
-          const t = data.teams || [];
-          allTransferred.push(...t);
+          allTransferred.push({
+            team_number: team.team_number,
+            status: "transferred",
+            operation: isEdit ? "edit" : "add",
+          });
           setTransferred([...allTransferred]);
         } else {
-          // Check for token expiry - stop the whole transfer
-          if (data?.code === "TOKEN_EXPIRED" || data?.code === "NOT_LINKED") {
-            toast({
-              title: "Re-link required",
-              description: data.message,
-              variant: "destructive",
-            });
+          if (data?.code === "TOKEN_EXPIRED" || data?.code === "NO_AUTH_TOKEN") {
+            toast({ title: "Re-link required", description: data.error, variant: "destructive" });
             stopped = true;
             router.push("/fantasy");
             break;
           }
-          // Record the failed team
-          const failed = data.failed || [];
-          if (failed.length === 0) {
-            allFailed.push({
-              team_number: team.team_number,
-              error: data?.message || "Transfer failed",
-            });
-          } else {
-            allFailed.push(...failed);
-          }
+          allFailed.push({ team_number: team.team_number, error: data?.error || data?.message || "Transfer failed" });
           setFailedTeams([...allFailed]);
+
+          // Rate limit → wait and retry once
+          if (data?.code === "RATE_LIMITED" && i < totalToProcess - 1) {
+            await new Promise((r) => setTimeout(r, 4000));
+          }
         }
       } catch (e) {
-        allFailed.push({
-          team_number: team.team_number,
-          error: (e as Error).message,
-        });
+        allFailed.push({ team_number: team.team_number, error: (e as Error).message });
         setFailedTeams([...allFailed]);
+      }
+
+      // Platform-specific delay between teams
+      if (i < totalToProcess - 1) {
+        const delay = selectedPlatform === "my11circle" ? 3000 : selectedPlatform === "jumbo" ? 1000 : 300;
+        await new Promise((r) => setTimeout(r, delay));
       }
     }
 

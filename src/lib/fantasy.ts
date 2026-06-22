@@ -16,7 +16,7 @@ export const FANTASY_PLATFORMS: FantasyPlatform[] = [
     name: "Dream11",
     logo: "/Dream11.jpg",
     color: "#d13239",
-    limit: 40,
+    limit: 11,
     available: true,
   },
   {
