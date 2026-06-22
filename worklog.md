@@ -887,3 +887,41 @@ Stage Summary:
   - id sent as-is (not String converted)
   - my11circle fields sent as-is (not String converted)
 - With valid OTP-linked account, transfer should now succeed
+
+---
+Task ID: 22
+Agent: main
+Task: Fix transfer - backend requires Bearer JWT (Google OAuth)
+
+Work Log:
+- ROOT CAUSE FOUND: The backend (tgsoftware-api.online) returns "Something Went Wrong!"
+  (HTTP 201 + status:fail) when the Authorization: Bearer <jwt> header is MISSING.
+  The real source comment confirms: "201 when platform rejected (missing/expired Bearer token)"
+- My bypass mode (no Bearer) was WRONG — transfers CANNOT work without the Bearer JWT
+- The Bearer JWT comes from Google OAuth:
+  1. User signs in with Google (Google Identity Services)
+  2. Google returns an auth code
+  3. Code is exchanged via /api/auth/google -> tgsoftware-api.online/api/auth/google
+  4. Backend returns {token: "eyJ..."} (the JWT)
+  5. Frontend stores it as localStorage.user_token
+  6. Transfer sends it as Authorization: Bearer <token>
+- IMPLEMENTED:
+  1. /api/auth/google route (proxies to backend)
+  2. Login page with real Google OAuth (client_id from original source)
+  3. Transfer API reads userToken from request body, sends as Bearer header
+  4. list-of-teams API also sends Bearer header
+  5. Transfer page sends localStorage.user_token with each request
+  6. Manual token input fallback (for environments where OAuth origin isn't authorized)
+- Google OAuth uses the REAL client_id: 377910069955-90ivls7ne2qk81tkgurj52jc1cgqg7r4
+- Login page shows:
+  - "Sign in with Google" button (triggers GIS OAuth flow)
+  - Manual token input (paste user_token from teamgeneration.in DevTools)
+- Lint passes cleanly (0 errors)
+
+Stage Summary:
+- Transfer now sends Authorization: Bearer <jwt> (was missing — root cause of all failures)
+- Google OAuth implemented with real client_id from original source
+- Manual token input for environments where OAuth origin isn't authorized
+- User flow: Sign in with Google → get user_token → transfer with Bearer → SUCCESS
+- The "Something Went Wrong!" error was because Bearer was missing, NOT because of
+  payload format or player IDs

@@ -103,10 +103,12 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
     if (!matchId || !currentAccount) return;
     setFetchingExisting(true);
     try {
+      let userToken = "";
+      try { userToken = localStorage.getItem("user_token") || ""; } catch {}
       const res = await fetch("/api/fantasy/list-of-teams", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fantasyApp: selectedPlatform, matchId }),
+        body: JSON.stringify({ fantasyApp: selectedPlatform, matchId, userToken }),
       });
       const data = await res.json();
       if (data?.status === "success" || Array.isArray(data?.teams_list)) {
@@ -173,6 +175,10 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
       setProgressTeam(`Team #${team.team_number} (${i + 1}/${storedTeams.length})`);
 
       try {
+        // Get Google OAuth token from localStorage (needed for Bearer auth)
+        let userToken = "";
+        try { userToken = localStorage.getItem("user_token") || ""; } catch {}
+
         const res = await fetch("/api/transfer", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -180,9 +186,10 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
             matchId,
             fantasyApp: selectedPlatform,
             mode,
-            teams: [team], // send ONE team at a time
+            teams: [team],
             customReplaceCount,
             customAddCount,
+            userToken,
             ...extra,
           }),
         });

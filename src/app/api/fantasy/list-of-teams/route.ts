@@ -22,9 +22,10 @@ const PLATFORM_LIMITS: Record<string, number> = {
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { fantasyApp = "dream11", matchId } = body as {
+    const { fantasyApp = "dream11", matchId, userToken } = body as {
       fantasyApp?: string;
       matchId?: string;
+      userToken?: string;
     };
 
     if (!matchId) {
@@ -83,13 +84,17 @@ export async function POST(req: Request) {
     // BYPASS MODE: No Bearer token needed — works with just authToken
     for (const endpoint of endpoints) {
       try {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          Origin: "https://teamgeneration.in",
+          Referer: "https://teamgeneration.in/",
+        };
+        if (userToken && userToken.length >= 20) {
+          headers["Authorization"] = `Bearer ${userToken}`;
+        }
         const res = await fetch(`${BACKEND}${endpoint}`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Origin: "https://teamgeneration.in",
-            Referer: "https://teamgeneration.in/",
-          },
+          headers,
           body: JSON.stringify(payload),
           cache: "no-store",
         });

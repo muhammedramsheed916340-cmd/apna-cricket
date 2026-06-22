@@ -107,11 +107,11 @@ interface TransferReq {
   matchId?: string;
   fantasyApp?: string;
   teams?: any[];
-  // transfer mode: "all" (edit existing + add new), "newOnly" (add only), "custom" (X edit + Y add), "replace" (edit specific team)
   mode?: "all" | "newOnly" | "custom" | "replace";
   customReplaceCount?: number;
   customAddCount?: number;
   replaceTeamId?: number;
+  userToken?: string; // Google OAuth JWT for Bearer auth
 }
 
 export async function POST(req: Request) {
@@ -125,6 +125,7 @@ export async function POST(req: Request) {
       customReplaceCount = 0,
       customAddCount = 0,
       replaceTeamId,
+      userToken,
     } = body;
 
     if (!matchId) {
@@ -165,10 +166,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // BYPASS MODE: No Bearer token needed.
-    // The backend accepts add-team/edit-team with just the authToken (from OTP).
-    // Transfers work WITHOUT Google OAuth / Bearer JWT.
-    const bearerToken = "";
+    // The backend requires Authorization: Bearer <jwt> for add-team/edit-team.
+    // The JWT comes from Google OAuth (user_token in localStorage).
+    const bearerToken = userToken || "";
 
     const maxTeams = PLATFORM_LIMITS[fantasyApp] || 40;
 
@@ -346,6 +346,9 @@ export async function POST(req: Request) {
               Origin: "https://teamgeneration.in",
               Referer: "https://teamgeneration.in/",
             };
+            if (bearerToken && bearerToken.length >= 20) {
+              headers["Authorization"] = `Bearer ${bearerToken}`;
+            }
             const upRes = await fetch(`${BACKEND}${endpoint}`, {
               method: "POST",
               headers,
