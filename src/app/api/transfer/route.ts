@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { resolveBearerToken } from "@/lib/shared-token";
 
 export const dynamic = "force-dynamic";
 
@@ -172,6 +173,12 @@ export async function POST(req: Request) {
         { status: 401 }
       );
     }
+
+    // Resolve the Bearer token (shared Google JWT from DB, or user token)
+    // The tgsoftware-api.online backend requires Authorization: Bearer <jwt>
+    // for add-team/edit-team endpoints. Without it, transfers return "Something Went Wrong!"
+    const bearerToken = await resolveBearerToken(undefined);
+    console.log(`[Transfer][BEARER] ${bearerToken ? `Available (len: ${bearerToken.length})` : "NONE — bypass mode"}`);
 
     const maxTeams = PLATFORM_LIMITS[fantasyApp] || 40;
 
@@ -351,15 +358,22 @@ export async function POST(req: Request) {
 
       for (const endpoint of endpointChain) {
         try {
+          // Build headers — include Authorization Bearer if available
+          // The backend REQUIRES this for add-team/edit-team endpoints
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+            Origin: "https://teamgeneration.in",
+            Referer: "https://teamgeneration.in/",
+          };
+          if (bearerToken && bearerToken.length >= 20) {
+            headers["Authorization"] = `Bearer ${bearerToken}`;
+          }
           const upRes = await fetch(`${BACKEND}${endpoint}`, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Origin: "https://teamgeneration.in",
-              Referer: "https://teamgeneration.in/",
-            },
+            headers,
             body: JSON.stringify(payload),
             cache: "no-store",
+            signal: AbortSignal.timeout(15000),
           });
           const upData = await upRes.json().catch(() => ({}));
 

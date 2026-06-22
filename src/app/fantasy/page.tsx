@@ -369,6 +369,9 @@ export default function FantasyPage() {
           </span>
           <ChevronRight size={16} color="#6c757d" />
         </a>
+
+        {/* Shared Token (Bearer JWT) status */}
+        <SharedTokenSection />
       </main>
 
       {/* OTP Modal */}
@@ -664,6 +667,146 @@ export default function FantasyPage() {
       )}
 
       <BottomNav />
+    </div>
+  );
+}
+
+// Shared Token section — allows setting a Google JWT (Bearer token) for transfers.
+// The tgsoftware-api.online backend requires Authorization: Bearer <jwt> for
+// add-team/edit-team. Without it, transfers return "Something Went Wrong!".
+function SharedTokenSection() {
+  const [hasToken, setHasToken] = useState(false);
+  const [showInput, setShowInput] = useState(false);
+  const [token, setToken] = useState("");
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const check = async () => {
+    try {
+      const res = await fetch("/api/auth/shared-token", { cache: "no-store" });
+      const data = await res.json();
+      setHasToken(!!data?.hasSharedToken);
+    } catch {}
+  };
+
+  useEffect(() => {
+    check();
+  }, []);
+
+  const save = async () => {
+    if (!token || token.length < 20) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/auth/shared-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: password || "8950888988", token }),
+      });
+      const data = await res.json();
+      if (data?.status === "success") {
+        setHasToken(true);
+        setShowInput(false);
+        setToken("");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        background: "#fff",
+        borderRadius: 8,
+        padding: 14,
+        marginTop: 10,
+        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <Shield size={16} color={hasToken ? "#28a745" : "#dc3545"} />
+        <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>
+          Transfer Bearer Token
+        </span>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            padding: "3px 8px",
+            borderRadius: 4,
+            background: hasToken ? "#d4edda" : "#fdecee",
+            color: hasToken ? "#155724" : "#dc3545",
+          }}
+        >
+          {hasToken ? "ACTIVE" : "MISSING"}
+        </span>
+      </div>
+      <p style={{ fontSize: 11, color: "#6c757d", marginBottom: 8 }}>
+        The backend requires a Bearer JWT for team transfers. Without it, transfers
+        will fail with "Something Went Wrong!". Set a Google JWT to enable transfers.
+      </p>
+      {!hasToken && !showInput && (
+        <button
+          onClick={() => setShowInput(true)}
+          className="btn-tg-primary"
+          style={{
+            padding: "8px 12px",
+            border: "none",
+            borderRadius: 4,
+            color: "#fff",
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          Set Bearer Token
+        </button>
+      )}
+      {showInput && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <input
+            type="password"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="Paste Google JWT token here"
+            style={{
+              padding: "8px 10px",
+              border: "1px solid #ddd",
+              borderRadius: 4,
+              fontSize: 12,
+            }}
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Admin password (default: 8950888988)"
+            style={{
+              padding: "8px 10px",
+              border: "1px solid #ddd",
+              borderRadius: 4,
+              fontSize: 12,
+            }}
+          />
+          <button
+            onClick={save}
+            disabled={saving || token.length < 20}
+            className="btn-tg-success"
+            style={{
+              padding: "8px 12px",
+              border: "none",
+              borderRadius: 4,
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: saving ? "wait" : "pointer",
+              opacity: saving || token.length < 20 ? 0.6 : 1,
+            }}
+          >
+            {saving ? "Saving..." : "Save Token"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
