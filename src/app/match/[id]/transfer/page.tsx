@@ -54,6 +54,9 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
   const [selectedPlatform, setSelectedPlatform] = useState<string>("dream11");
   const [hash, setHash] = useState<string | null>(null);
   const [transferring, setTransferring] = useState(false);
+  const [progressCurrent, setProgressCurrent] = useState(0);
+  const [progressTotal, setProgressTotal] = useState(0);
+  const [progressTeam, setProgressTeam] = useState<string>("");
   const [transferred, setTransferred] = useState<any[]>([]);
   const [failedTeams, setFailedTeams] = useState<any[]>([]);
   const [bulkResult, setBulkResult] = useState<any>(null);
@@ -150,52 +153,100 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
       });
       return;
     }
+
     setTransferring(true);
     setTransferred([]);
     setFailedTeams([]);
     setBulkResult(null);
-    try {
-      const res = await fetch("/api/transfer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          matchId,
-          fantasyApp: selectedPlatform,
-          mode,
-          teams: storedTeams.slice(0, limit),
-          customReplaceCount,
-          customAddCount,
-          ...extra,
-        }),
-      });
-      const data = await res.json();
-      if (data?.status === "success") {
-        setTransferred(data.teams || []);
-        setFailedTeams(data.failed || []);
-        if (data.hash) setHash(data.hash);
-        setBulkResult(data);
-        toast({ title: "Transfer complete", description: data.message });
-        // Refresh existing teams
-        fetchExisting();
-      } else {
-        if (data?.code === "TOKEN_EXPIRED" || data?.code === "NOT_LINKED") {
-          toast({
-            title: "Re-link required",
-            description: data.message,
-            variant: "destructive",
-          });
-          router.push("/fantasy");
+    setProgressCurrent(0);
+    setProgressTotal(storedTeams.length);
+
+    const allTransferred: any[] = [];
+    const allFailed: any[] = [];
+    let stopped = false;
+
+    // Process teams ONE BY ONE with live progress
+    for (let i = 0; i < storedTeams.length; i++) {
+      if (stopped) break;
+      const team = storedTeams[i];
+      setProgressCurrent(i + 1);
+      setProgressTeam(`Team #${team.team_number} (${i + 1}/${storedTeams.length})`);
+
+      try {
+        const res = await fetch("/api/transfer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            matchId,
+            fantasyApp: selectedPlatform,
+            mode,
+            teams: [team], // send ONE team at a time
+            customReplaceCount,
+            customAddCount,
+            ...extra,
+          }),
+        });
+        const data = await res.json();
+
+        if (data?.status === "success") {
+          const t = data.teams || [];
+          allTransferred.push(...t);
+          setTransferred([...allTransferred]);
         } else {
-          toast({
-            title: "Transfer failed",
-            description: data?.message || "Something went wrong",
-            variant: "destructive",
-          });
-          if (data?.failed) setFailedTeams(data.failed);
+          // Check for token expiry - stop the whole transfer
+          if (data?.code === "TOKEN_EXPIRED" || data?.code === "NOT_LINKED") {
+            toast({
+              title: "Re-link required",
+              description: data.message,
+              variant: "destructive",
+            });
+            stopped = true;
+            router.push("/fantasy");
+            break;
+          }
+          // Record the failed team
+          const failed = data.failed || [];
+          if (failed.length === 0) {
+            allFailed.push({
+              team_number: team.team_number,
+              error: data?.message || "Transfer failed",
+            });
+          } else {
+            allFailed.push(...failed);
+          }
+          setFailedTeams([...allFailed]);
         }
+      } catch (e) {
+        allFailed.push({
+          team_number: team.team_number,
+          error: (e as Error).message,
+        });
+        setFailedTeams([...allFailed]);
       }
-    } finally {
-      setTransferring(false);
+    }
+
+    setProgressTeam("");
+    setTransferring(false);
+
+    if (allTransferred.length > 0) {
+      setBulkResult({
+        message: `${allTransferred.length}/${storedTeams.length} teams transferred to ${currentPlatform.name}`,
+        existingTeamsCount: presentTeamCount,
+        newSlots,
+        teamsToEdit: allTransferred.filter((t) => t.operation === "edit").length,
+        teamsToAdd: allTransferred.filter((t) => t.operation === "add").length,
+      });
+      toast({
+        title: "Transfer complete",
+        description: `${allTransferred.length}/${storedTeams.length} teams transferred to ${currentPlatform.name}`,
+      });
+      fetchExisting();
+    } else if (!stopped) {
+      toast({
+        title: "Transfer failed",
+        description: `${allFailed.length} teams failed. Check errors below.`,
+        variant: "destructive",
+      });
     }
   };
 
@@ -432,7 +483,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
           >
             {transferring ? (
               <>
-                <Loader2 size={16} className="animate-spin" /> Transferring...
+                <Loader2 size={16} className="animate-spin" /> Transferring {progressCurrent}/{progressTotal}...
               </>
             ) : (
               <>
@@ -440,6 +491,40 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
               </>
             )}
           </button>
+        )}
+
+        {/* Live progress bar during transfer */}
+        {transferring && progressTotal > 0 && (
+          <div style={{ marginTop: 12, marginBottom: 4 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 600, color: "#563d7c", marginBottom: 4 }}>
+              <span>{progressTeam || "Transferring..."}</span>
+              <span>{progressCurrent}/{progressTotal} ({Math.round((progressCurrent / progressTotal) * 100)}%)</span>
+            </div>
+            {/* Progress bar */}
+            <div style={{ width: "100%", height: 8, background: "#e9ecef", borderRadius: 4, overflow: "hidden" }}>
+              <div
+                style={{
+                  width: `${(progressCurrent / progressTotal) * 100}%`,
+                  height: "100%",
+                  background: "linear-gradient(90deg, #563d7c, #28a745)",
+                  borderRadius: 4,
+                  transition: "width 0.3s ease",
+                }}
+              />
+            </div>
+            {/* Live counters */}
+            <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 11 }}>
+              <span style={{ color: "#28a745", fontWeight: 600 }}>
+                ✓ {transferred.length} transferred
+              </span>
+              <span style={{ color: "#dc3545", fontWeight: 600 }}>
+                ✗ {failedTeams.length} failed
+              </span>
+              <span style={{ color: "#6c757d" }}>
+                ⏳ {progressTotal - progressCurrent - failedTeams.length - transferred.length} remaining
+              </span>
+            </div>
+          </div>
         )}
       </div>
 

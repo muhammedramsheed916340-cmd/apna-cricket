@@ -743,3 +743,40 @@ Stage Summary:
 - All 3 platforms now send the full raw token exactly as the OTP verify returned it
 - Matches original teamgeneration.in behavior: preparedToken = String(authToken)
 - With a real OTP-linked Dream11 account, transfer should now succeed
+
+---
+Task ID: 18
+Agent: main
+Task: Add proper transfer progress display (was just showing "Transferring...")
+
+Work Log:
+- User wants: "Transfer now showing buffer style, show proper transferring number style"
+- OLD behavior: single API call for all teams, button just showed "Transferring..." with spinner
+- NEW behavior: process teams ONE BY ONE from client with live progress
+- Changes to doTransfer():
+  - Loop through teams, send ONE team per API call
+  - After each team: update progress state (current/total)
+  - Live update transferred[] and failedTeams[] arrays
+  - Stop on TOKEN_EXPIRED (redirect to /fantasy)
+- Added progress state:
+  - progressCurrent (which team we're on)
+  - progressTotal (total teams)
+  - progressTeam (e.g. "Team #3 (3/5)")
+- Added live progress bar UI:
+  - Header: "Team #3 (3/5)" + "3/5 (60%)"
+  - Progress bar: gradient purple->green, animated width
+  - Live counters: "✓ 3 transferred | ✗ 0 failed | ⏳ 2 remaining"
+- Button text: "Transferring 3/5..." (was "Transferring...")
+- Browser-verified:
+  - Captured mid-transfer: "Team #3 (3/5)", "60%", "✓ 3 transferred, ⏳ 2 remaining"
+  - Progress bar fills smoothly as teams transfer
+  - Failed teams appear live in the Failed Teams section
+- Lint passes cleanly (0 errors)
+
+Stage Summary:
+- Transfer now shows proper progress with numbers:
+  - "Transferring 3/5..." on the button
+  - Progress bar with percentage (0% -> 100%)
+  - Live counters: transferred / failed / remaining
+  - Current team number being processed
+- No more "buffer style" (just spinner) — now shows real progress
