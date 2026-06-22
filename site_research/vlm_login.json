@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Header: Purple with \"Team Generation\" logo (yellow trophy) and \"Associated with Believer01\".  \nMain heading: \"Welcome 👋 Login or Sign Up\".  \nKey text (first 200 chars): \"Sign in to create high quality teams, transfer and join seamlessly.\"  \nFooter: \"Need help? Contact us on WhatsApp 9848579715\" (green button).  \nNo build error/broken layout.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1782151476,
+  "id": "202606230204359ab43c7d0f754c93",
+  "model": "glm-4.6v",
+  "object": "chat.completion",
+  "request_id": "202606230204359ab43c7d0f754c93",
+  "usage": {
+    "completion_tokens": 92,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 574,
+    "prompt_tokens_details": {
+      "cached_tokens": 6
+    },
+    "total_tokens": 666
+  }
+}

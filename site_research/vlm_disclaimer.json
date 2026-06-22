@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Header: Purple background with yellow \"Team Generation\" logo (associated with Believer01) and a home icon.  \nMain heading: \"Fantasy Team & Financial Disclaimer\".  \nKey text (first 200 chars): \"Last Updated: September 2025 CRITICAL LEGAL & FINANCIAL NOTICE (FREE SERVICE) 1. Compliance with Indian Law (Online Gaming Act, 2025) Team Generation strictly adheres to the Promotion and Regulation of Online Gaming Act, 2025. Our service is entirely FREE-TO-PLAY and does NOT involve any Real Money Gaming (RMG) or cash stakes. We do NOT accept deposits or process financial transactions for games. Our platform does NOT offer cash prizes or winnings. Fantasy sports involving money are banned in India under the Online Gaming Act, 2025.\"  \nFooter: \"Developed By Believer01\" (with YouTube icon) and \"Refer your friends for benefits\".  \nNo build error or broken layout.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1782151495,
+  "id": "2026062302045166df92e9f9ff4cff",
+  "model": "glm-4.6v",
+  "object": "chat.completion",
+  "request_id": "2026062302045166df92e9f9ff4cff",
+  "usage": {
+    "completion_tokens": 200,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 679,
+    "prompt_tokens_details": {
+      "cached_tokens": 5
+    },
+    "total_tokens": 879
+  }
+}

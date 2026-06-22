@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Header: Purple background with a yellow trophy logo and \"Team Generation\" text. Main heading: \"Privacy Policy\". Key text (first 200 chars): \"Last Updated: September 2025 1. Data Collection (Google OAuth) When you sign up or log in to Team Generation, we use Google OAuth to securely collect the following information solely for user authentication and profile creation: Your Name Your Email Address Your Google Profile Picture We do not share your personal identification data (Name, Email) with any third-party marketing companies.\" Footer: \"Developed by Believer01\" with a YouTube icon, and \"Refer your friends for benefits\". No build error or broken layout.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1782151486,
+  "id": "20260623020443738294912a3140fd",
+  "model": "glm-4.6v",
+  "object": "chat.completion",
+  "request_id": "20260623020443738294912a3140fd",
+  "usage": {
+    "completion_tokens": 139,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 664,
+    "prompt_tokens_details": {
+      "cached_tokens": 6
+    },
+    "total_tokens": 803
+  }
+}

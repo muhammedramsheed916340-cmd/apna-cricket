@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Header: Purple with \"Team Generation\" logo (yellow trophy) and \"Associated with Believer01\". Main heading: \"About Us\". Key text (first 200 chars): \"Team Generation is the only tool you need to win Grand league and Small leagues and even H2H leagues in your fantasy application. This software uses multiple techniques and algorithms to create accurate and winning teams and this software is owned by Believer01 youtube channel. Coder Bobby who is the only developer and founder of Team Generation Software, he is a professional software Engineer and likes to develop interesting apps\". Footer: \"Developed By Believer01 [YouTube icon] Refer your friends for benefits\". No build error or broken layout.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1782151500,
+  "id": "20260623020457c358cb5d4f1b4e5f",
+  "model": "glm-4.6v",
+  "object": "chat.completion",
+  "request_id": "20260623020457c358cb5d4f1b4e5f",
+  "usage": {
+    "completion_tokens": 145,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 529,
+    "prompt_tokens_details": {
+      "cached_tokens": 42
+    },
+    "total_tokens": 674
+  }
+}

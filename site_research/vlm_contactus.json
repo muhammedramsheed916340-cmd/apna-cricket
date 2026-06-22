@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Header: Purple background with \"Team Generation\" logo (yellow trophy) and \"Associated with Believer01\".  \nMain heading: \"Contact Us\".  \nKey text (first 200 chars): \"We are committed to providing reliable service. If you have any questions, feedback, or need support, please reach out to us using the contact details below. Support & General Inquiries For the fastest response, please email us directly: Email: believer01.official@gmail.com Address & Operations Team Generation is an online service operating under Indian laws. *We aim to respond to all inquiries within 24-48 hours.\"  \nFooter: \"Developed By Believer01 [YouTube icon] Refer your friends for benefits\".  \nLayout: No build error or broken layout.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1782151497,
+  "id": "202606230204556d7fe9acbf1e43f6",
+  "model": "glm-4.6v",
+  "object": "chat.completion",
+  "request_id": "202606230204556d7fe9acbf1e43f6",
+  "usage": {
+    "completion_tokens": 156,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 529,
+    "prompt_tokens_details": {
+      "cached_tokens": 6
+    },
+    "total_tokens": 685
+  }
+}

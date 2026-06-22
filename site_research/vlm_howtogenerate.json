@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Header: Purple background with \"Team Generation\" (yellow trophy logo) and \"Associated with Believer01\". Main heading: \"How To Generate?\". Key text (first 200 chars): \"Software Available for All matches of Cricket,football and basketball and you can create accurate teams and those teams will be stored and you can even check the results of the teams Team Generator software have 3 sections, 1) Smart Generation section for Risky Grand League teams and 2) Grand League section for Standard Grand League teams, 3) Advanced generation for more powerful teams\". Footer: \"Developed By Believer01 [YouTube icon] Refer your friends for benefits\". No build error/broken layout.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1782151481,
+  "id": "202606230204365722347f567a4d1f",
+  "model": "glm-4.6v",
+  "object": "chat.completion",
+  "request_id": "202606230204365722347f567a4d1f",
+  "usage": {
+    "completion_tokens": 145,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 529,
+    "prompt_tokens_details": {
+      "cached_tokens": 7
+    },
+    "total_tokens": 674
+  }
+}

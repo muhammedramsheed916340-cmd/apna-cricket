@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Header: Purple background with \"Team Generation\" logo (yellow trophy) and \"Associated with Believer01\". Main heading: \"Terms and Conditions\". Key text (first 200 chars): \"Last Updated: September 2025 1. Acceptance of Terms By accessing and using the Team Generation website (both teamgeneration.in and team-generation.netlify.app) and its free services, you agree to these Terms and Conditions. 2. Free-to-Play Service Our service provides suggested fantasy sports teams for free. No monetary transactions, deposits, or winnings are processed by Team Generation. You agree to use the service only for personal, recreational purposes in full compliance with the Promotion and Regulation of Online Gaming Act, 2025. 3. User Account and Conduct You are solely responsible for all activity under your Google OAuth-linked account. You must be over 18 years of age to use this service. You agree not to use the service for illegal activities, including real-money gaming or betting, which is strictly prohibited in India under the Online Gaming Act, 2025. 4. Intellectual Property and Content All content, including suggested teams and algorithms, is the property of Team Generation. You may not reproduce, copy, or redistribute our content for commercial gain.\" Footer: \"Refer your friends for benefits\" + navigation icons (Home, My matches, Research, User). No build error or broken layout.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1782151490,
+  "id": "202606230204466937a24f1ef944b4",
+  "model": "glm-4.6v",
+  "object": "chat.completion",
+  "request_id": "202606230204466937a24f1ef944b4",
+  "usage": {
+    "completion_tokens": 286,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 589,
+    "prompt_tokens_details": {
+      "cached_tokens": 5
+    },
+    "total_tokens": 875
+  }
+}

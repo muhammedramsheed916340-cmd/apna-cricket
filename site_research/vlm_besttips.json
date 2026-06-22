@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Header: Purple with \"Team Generation\" logo (yellow trophy) and \"Associated with Believer01\". Main heading: \"Best Tips\". Key text (first 200 chars): \"Many Users won lot of profits and winnigby using this software and i highly recommend you to do research and make best teams with the software Advanced Generation Section is best for winning good profit with your research as well as software will also help from its side to have the best combinations possible to win 1st Rank.\" Footer: \"Developed By Believer01 [YouTube icon] Refer your friends for benefits\". No build error/broken layout.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1782151483,
+  "id": "202606230204418b27e65be73e4a6e",
+  "model": "glm-4.6v",
+  "object": "chat.completion",
+  "request_id": "202606230204418b27e65be73e4a6e",
+  "usage": {
+    "completion_tokens": 130,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 529,
+    "prompt_tokens_details": {
+      "cached_tokens": 5
+    },
+    "total_tokens": 659
+  }
+}
