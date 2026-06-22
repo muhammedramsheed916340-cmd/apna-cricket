@@ -56,7 +56,7 @@ export default function FantasyPage() {
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
-  const [devOtp, setDevOtp] = useState<string | null>(null);
+  const [retriesLeft, setRetriesLeft] = useState<number | null>(null);
 
   const loadAccounts = async () => {
     setLoading(true);
@@ -85,7 +85,7 @@ export default function FantasyPage() {
     setMobile("");
     setOtp("");
     setStep("mobile");
-    setDevOtp(null);
+    setRetriesLeft(null);
   };
 
   const sendOtp = async () => {
@@ -112,10 +112,12 @@ export default function FantasyPage() {
       if (data?.status === "success") {
         setStep("otp");
         setResendTimer(60);
-        setDevOtp(data.data?.devOtp || null);
+        setRetriesLeft(data.data?.retriesLeft ?? null);
         toast({
-          title: "OTP Sent",
-          description: `OTP sent to ${mobile} for ${activePlatform.name}`,
+          title: "OTP Sent via SMS",
+          description: `A real OTP has been sent to ${mobile} via SMS. Check your phone. ${
+            data.data?.retriesLeft != null ? `(${data.data.retriesLeft} attempts left)` : ""
+          }`,
         });
       } else {
         toast({
@@ -131,10 +133,10 @@ export default function FantasyPage() {
 
   const verifyOtp = async () => {
     if (!activePlatform) return;
-    if (!/^\d{6}$/.test(otp)) {
+    if (!/^\d{4,6}$/.test(otp)) {
       toast({
         title: "Invalid OTP",
-        description: "Enter the 6-digit OTP",
+        description: "Enter the OTP received via SMS (4-6 digits)",
         variant: "destructive",
       });
       return;
@@ -509,30 +511,28 @@ export default function FantasyPage() {
               <>
                 <div
                   style={{
-                    background: "#f8f9fa",
+                    background: "#e3f2fd",
                     borderRadius: 8,
                     padding: 10,
                     marginBottom: 14,
                     fontSize: 12,
-                    color: "#6c757d",
+                    color: "#0d47a1",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 8,
                   }}
                 >
-                  OTP sent to <strong>+91 {mobile}</strong>
-                  {devOtp && (
-                    <div
-                      style={{
-                        marginTop: 6,
-                        padding: "6px 8px",
-                        background: "#fff3cd",
-                        color: "#856404",
-                        borderRadius: 4,
-                        fontSize: 11,
-                        fontWeight: 600,
-                      }}
-                    >
-                      Dev OTP: {devOtp} (auto-filled in production via SMS)
-                    </div>
-                  )}
+                  <Phone size={14} style={{ marginTop: 1, flexShrink: 0 }} />
+                  <div>
+                    A <strong>real OTP</strong> has been sent via SMS to{" "}
+                    <strong>+91 {mobile}</strong>. Enter the code you received
+                    below.
+                    {retriesLeft != null && (
+                      <div style={{ marginTop: 4, fontSize: 11 }}>
+                        {retriesLeft} verification attempt(s) left
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <label
                   style={{
@@ -565,7 +565,7 @@ export default function FantasyPage() {
                     onChange={(e) =>
                       setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
                     }
-                    placeholder="Enter 6-digit OTP"
+                    placeholder="Enter OTP from SMS"
                     style={{
                       flex: 1,
                       border: "none",
@@ -579,7 +579,7 @@ export default function FantasyPage() {
                 </div>
                 <button
                   onClick={verifyOtp}
-                  disabled={verifying || otp.length !== 6}
+                  disabled={verifying || otp.length < 4}
                   className="btn-tg-success"
                   style={{
                     width: "100%",
@@ -590,7 +590,7 @@ export default function FantasyPage() {
                     fontSize: 14,
                     fontWeight: 700,
                     cursor: verifying ? "wait" : "pointer",
-                    opacity: verifying || otp.length !== 6 ? 0.6 : 1,
+                    opacity: verifying || otp.length < 4 ? 0.6 : 1,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",

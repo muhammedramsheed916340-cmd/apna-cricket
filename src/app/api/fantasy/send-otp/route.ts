@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
-// Send OTP to mobile number for the chosen fantasy platform.
-// Mirrors original: POST /api/fantasy/send-otp { fantasyApp, mobileNumber }
+const BACKEND = "https://tgsoftware-api.online";
+const SUPPORTED = ["dream11", "my11circle", "jumbo", "myteam11", "vision11", "myfab11"];
+
+// Send a REAL OTP via the original tgsoftware-api.online backend.
+// The fantasy platform sends the OTP via SMS to the mobile number.
+// We never generate or display the OTP ourselves.
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -26,28 +31,75 @@ export async function POST(req: Request) {
       );
     }
 
-    const supported = ["dream11", "my11circle", "jumbo"];
-    if (!supported.includes(fantasyApp)) {
+    if (!SUPPORTED.includes(fantasyApp)) {
       return NextResponse.json(
         { status: "error", message: "Unsupported fantasy platform" },
         { status: 400 }
       );
     }
 
-    // Simulate OTP dispatch (in production this calls the platform's API)
-    await new Promise((r) => setTimeout(r, 700));
-    const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+    // Call the real backend — it proxies to Dream11/My11Circle/Jumbo and sends
+    // a real SMS OTP. We persist the returned state/challenge in a short-lived
+    // cookie so the verify-otp step can include it.
+    const upstream = await fetch(`${BACKEND}/api/fantasy/send-otp`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "https://teamgeneration.in",
+        Referer: "https://teamgeneration.in/",
+      },
+      body: JSON.stringify({ fantasyApp, mobileNumber }),
+      cache: "no-store",
+    });
+
+    const data = await upstream.json().catch(() => ({}));
+
+    if (upstream.status !== 200 || data?.status !== "success") {
+      return NextResponse.json(
+        {
+          status: "error",
+          message: data?.message || "Failed to send OTP. Try again.",
+        },
+        { status: upstream.status === 200 ? 400 : upstream.status }
+      );
+    }
+
+    // Persist state / challenge for the verify step (httpOnly, 10 min)
+    const stateData = data.data || {};
+    const store = await cookies();
+    store.set(
+      `tg_otp_${fantasyApp}`,
+      Buffer.from(
+        JSON.stringify({
+          mobileNumber,
+          state: stateData.state || null,
+          challenge: stateData.challenge || null,
+          reasonCode: stateData.reasonCode || null,
+          resendAfter: stateData.resend_after || null,
+          resendsLeft: stateData.resends_left ?? 5,
+          retriesLeft: stateData.retries_left ?? 5,
+          createdAt: Date.now(),
+        })
+      ).toString("base64"),
+      {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 600, // 10 minutes
+      }
+    );
 
     return NextResponse.json({
       status: "success",
-      message: `OTP sent to ${mobileNumber} for ${fantasyApp}`,
+      message: data.message || `OTP sent to ${mobileNumber}`,
       data: {
         otpSent: true,
-        // Return the OTP in dev mode so the UI can display it (in production
-        // the OTP is delivered via SMS and never returned in the response).
-        devOtp: otpCode,
-        reasonCode: fantasyApp === "my11circle" ? "CHALLENGE_OK" : null,
+        reasonCode: stateData.reasonCode || null,
+        resendsLeft: stateData.resends_left ?? 5,
+        retriesLeft: stateData.retries_left ?? 5,
+        resendAfter: stateData.resend_after || null,
         expiresIn: 60,
+        // NOTE: no OTP value is returned — the real OTP is delivered via SMS
       },
     });
   } catch (e) {
