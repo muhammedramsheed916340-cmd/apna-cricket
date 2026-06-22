@@ -71,29 +71,9 @@ export const CRICKET_MATCHES: Match[] = [
 
 export const BANNERS = [
   {
-    alt: "TG Group",
-    src: "https://i.ibb.co/b2jB1Pw/tg-groups.png",
-    href: "https://t.me/teamgeneration_tg",
-  },
-  {
-    alt: "Transfer To Dream11",
-    src: "https://i.ibb.co/2td4cT1/d-banner.png",
+    alt: "Apna Cricket",
+    src: "/apna_cricket_logo.png",
     href: "#",
-  },
-  {
-    alt: "subscribe our channel",
-    src: "https://i.ibb.co/XYvjQqg/d11-new-rules.jpg",
-    href: "https://www.youtube.com/c/believer01",
-  },
-  {
-    alt: "subscribe our channel",
-    src: "https://i.ibb.co/WGRph1y/telegram-subscribe.jpg",
-    href: "https://t.me/teamgeneration_tg",
-  },
-  {
-    alt: "subscribe our channel",
-    src: "https://i.ibb.co/6vgWNXY/yt-subscribe.jpg",
-    href: "https://www.youtube.com/c/believer01",
   },
 ];
 

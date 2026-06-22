@@ -51,7 +51,7 @@ export default function CaptainPage({ params }: { params: Promise<{ id: string }
           style={{
             fontSize: 15,
             fontWeight: 700,
-            color: "#563d7c",
+            color: "#0066ff",
             marginBottom: 8,
             display: "flex",
             alignItems: "center",
@@ -66,7 +66,7 @@ export default function CaptainPage({ params }: { params: Promise<{ id: string }
         </p>
 
         <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
-          Captain Count: <span style={{ color: "#563d7c" }}>{captainIds.length}/{capCount}</span>
+          Captain Count: <span style={{ color: "#0066ff" }}>{captainIds.length}/{capCount}</span>
         </div>
         <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
           {[1, 3, 5, 8].map((n) => (
@@ -76,8 +76,8 @@ export default function CaptainPage({ params }: { params: Promise<{ id: string }
               style={{
                 flex: 1,
                 padding: "6px 0",
-                border: capCount === n ? "1px solid #563d7c" : "1px solid #ddd",
-                background: capCount === n ? "#563d7c" : "#fff",
+                border: capCount === n ? "1px solid #0066ff" : "1px solid #ddd",
+                background: capCount === n ? "#0066ff" : "#fff",
                 color: capCount === n ? "#fff" : "#6c757d",
                 borderRadius: 4,
                 fontSize: 11,
@@ -122,7 +122,7 @@ export default function CaptainPage({ params }: { params: Promise<{ id: string }
                       width: 32,
                       height: 32,
                       borderRadius: "50%",
-                      background: isCap ? "#ffc107" : p.team === "left" ? "#563d7c" : "#dc3545",
+                      background: isCap ? "#ffc107" : p.team === "left" ? "#0066ff" : "#dc3545",
                       color: "#fff",
                       display: "flex",
                       alignItems: "center",
@@ -142,7 +142,7 @@ export default function CaptainPage({ params }: { params: Promise<{ id: string }
                       {ROLE_LABELS[p.role]} · Sel {p.selBy}%
                     </div>
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#563d7c" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#0066ff" }}>
                     {p.credits} cr
                   </div>
                 </button>

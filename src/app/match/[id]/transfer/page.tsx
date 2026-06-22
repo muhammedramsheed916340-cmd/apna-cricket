@@ -334,7 +334,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
   return (
     <MatchShell matchId={matchId || "nz-sco-wt20"} active="transfer">
       <div style={{ background: "#fff", borderRadius: 8, padding: 14, marginBottom: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
-        <h3 style={{ fontSize: 15, fontWeight: 700, color: "#563d7c", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0066ff", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
           <Send size={16} /> Transfer Arena
         </h3>
         <p style={{ fontSize: 12, color: "#6c757d", marginBottom: 12 }}>
@@ -402,7 +402,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
               <span style={{ fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
                 <Layers size={12} /> Existing Teams on {currentPlatform.name}
               </span>
-              <button onClick={fetchExisting} disabled={fetchingExisting} style={{ padding: "4px 8px", border: "1px solid #563d7c", background: "#fff", color: "#563d7c", borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: fetchingExisting ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+              <button onClick={fetchExisting} disabled={fetchingExisting} style={{ padding: "4px 8px", border: "1px solid #0066ff", background: "#fff", color: "#0066ff", borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: fetchingExisting ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 4 }}>
                 {fetchingExisting ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
                 Refresh
               </button>
@@ -417,7 +417,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
                 <div style={{ fontSize: 9, color: "#6c757d" }}>New slots (add)</div>
               </div>
               <div style={{ flex: 1, background: "#fff", borderRadius: 4, padding: 6, textAlign: "center", border: "1px solid #eee" }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#563d7c" }}>{totalTeams}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#0066ff" }}>{totalTeams}</div>
                 <div style={{ fontSize: 9, color: "#6c757d" }}>Generated</div>
               </div>
             </div>
@@ -447,7 +447,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
                 onClick={() => setTransferMode("all")}
                 style={{
                   padding: 10,
-                  border: transferMode === "all" ? "2px solid #563d7c" : "1px solid #ddd",
+                  border: transferMode === "all" ? "2px solid #0066ff" : "1px solid #ddd",
                   background: transferMode === "all" ? "#f5f0fa" : "#fff",
                   borderRadius: 6,
                   cursor: "pointer",
@@ -457,7 +457,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
                   gap: 8,
                 }}
               >
-                <Edit3 size={16} color="#563d7c" />
+                <Edit3 size={16} color="#0066ff" />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#212529" }}>Mode 1: Add New + Replace</div>
                   <div style={{ fontSize: 10, color: "#6c757d" }}>
@@ -470,7 +470,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
                 onClick={() => setTransferMode("newOnly")}
                 style={{
                   padding: 10,
-                  border: transferMode === "newOnly" ? "2px solid #563d7c" : "1px solid #ddd",
+                  border: transferMode === "newOnly" ? "2px solid #0066ff" : "1px solid #ddd",
                   background: transferMode === "newOnly" ? "#f5f0fa" : "#fff",
                   borderRadius: 6,
                   cursor: "pointer",
@@ -493,7 +493,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
                 onClick={() => setTransferMode("custom")}
                 style={{
                   padding: 10,
-                  border: transferMode === "custom" ? "2px solid #563d7c" : "1px solid #ddd",
+                  border: transferMode === "custom" ? "2px solid #0066ff" : "1px solid #ddd",
                   background: transferMode === "custom" ? "#f5f0fa" : "#fff",
                   borderRadius: 6,
                   cursor: "pointer",
@@ -577,7 +577,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
         {/* Live progress bar during transfer */}
         {transferring && progressTotal > 0 && (
           <div style={{ marginTop: 12, marginBottom: 4 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 600, color: "#563d7c", marginBottom: 4 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 600, color: "#0066ff", marginBottom: 4 }}>
               <span>{progressTeam || "Transferring..."}</span>
               <span>{progressCurrent}/{progressTotal} ({Math.round((progressCurrent / progressTotal) * 100)}%)</span>
             </div>
@@ -587,7 +587,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
                 style={{
                   width: `${(progressCurrent / progressTotal) * 100}%`,
                   height: "100%",
-                  background: "linear-gradient(90deg, #563d7c, #28a745)",
+                  background: "linear-gradient(90deg, #0066ff, #28a745)",
                   borderRadius: 4,
                   transition: "width 0.3s ease",
                 }}
@@ -654,7 +654,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
 
       <a href="/fantasy" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fff", borderRadius: 8, padding: "12px 14px", textDecoration: "none", color: "#212529", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Link2 size={18} color="#563d7c" />
+          <Link2 size={18} color="#0066ff" />
           <span style={{ fontSize: 13, fontWeight: 600 }}>Manage Fantasy Accounts</span>
         </span>
         <ChevronRight size={16} color="#6c757d" />

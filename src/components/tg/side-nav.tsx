@@ -7,7 +7,6 @@ import {
   Info,
   ChevronRight,
   Phone,
-  Youtube,
   Briefcase,
   Shield,
 } from "lucide-react";
@@ -20,11 +19,6 @@ const MENU = [
   { label: "Terms And Conditions", path: "/terms", icon: ChevronRight },
   { label: "Disclaimer", path: "/disclaimer", icon: ChevronRight },
   { label: "contact us", path: "/contactus", icon: Phone },
-  {
-    label: "follow us on youtube",
-    href: "https://www.youtube.com/c/believer01",
-    icon: Youtube,
-  },
   { label: "about us", path: "/aboutus", icon: Briefcase },
 ];
 
@@ -68,8 +62,8 @@ export function SideNav({
         <div className="text-center" style={{ marginBottom: 16, marginTop: 8 }}>
           <img
             className="tg-logo"
-            alt="logo"
-            src="/tg_dark_logo.png"
+            alt="Apna Cricket logo"
+            src="/apna_cricket_logo.png"
             style={{ width: 200 }}
           />
         </div>
@@ -126,22 +120,21 @@ export function SideNav({
             marginTop: 16,
           }}
         >
-          <small style={{ color: "#6c757d" }}>developed by</small>
+          <small style={{ color: "#6c757d" }}>Powered by</small>
           <a
-            href="https://www.youtube.com/c/Believer01"
+            href="#"
             target="_blank"
             rel="noopener noreferrer"
             style={{ paddingLeft: 0, marginTop: 4 }}
           >
-            <img alt="logo" src="/owner.jpg" style={{ width: 150 }} />
+            <img alt="Apna Cricket logo" src="/apna_cricket_logo.png" style={{ width: 180 }} />
           </a>
           <span style={{ fontSize: 12, color: "#6c757d", marginTop: 4 }}>
             All Rights Reserved
           </span>
           <span style={{ fontSize: 12, color: "#6c757d" }}>
-            ©2021 Believer01
+            ©2025 Apna Cricket
           </span>
-          <span style={{ fontSize: 12, color: "#6c757d" }}>CEO Bobby</span>
         </div>
       </aside>
     </>

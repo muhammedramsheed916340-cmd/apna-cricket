@@ -70,7 +70,7 @@ export default function AdvancedPage({ params }: { params: Promise<{ id: string 
           style={{
             fontSize: 15,
             fontWeight: 700,
-            color: "#563d7c",
+            color: "#0066ff",
             marginBottom: 8,
             display: "flex",
             alignItems: "center",
@@ -107,7 +107,7 @@ export default function AdvancedPage({ params }: { params: Promise<{ id: string 
                   alignItems: "center",
                   gap: 8,
                   padding: "8px 10px",
-                  border: active ? "1px solid #563d7c" : "1px solid #ddd",
+                  border: active ? "1px solid #0066ff" : "1px solid #ddd",
                   background: active ? "#f5f0fa" : "#fff",
                   borderRadius: 6,
                   cursor: "pointer",
@@ -120,7 +120,7 @@ export default function AdvancedPage({ params }: { params: Promise<{ id: string 
                     height: 16,
                     borderRadius: 4,
                     border: active ? "none" : "1px solid #ccc",
-                    background: active ? "#563d7c" : "transparent",
+                    background: active ? "#0066ff" : "transparent",
                     flexShrink: 0,
                     display: "flex",
                     alignItems: "center",
@@ -153,8 +153,8 @@ export default function AdvancedPage({ params }: { params: Promise<{ id: string 
               style={{
                 flex: 1,
                 padding: "6px 0",
-                border: teamCount === n ? "1px solid #563d7c" : "1px solid #ddd",
-                background: teamCount === n ? "#563d7c" : "#fff",
+                border: teamCount === n ? "1px solid #0066ff" : "1px solid #ddd",
+                background: teamCount === n ? "#0066ff" : "#fff",
                 color: teamCount === n ? "#fff" : "#6c757d",
                 borderRadius: 4,
                 fontSize: 11,
@@ -173,7 +173,7 @@ export default function AdvancedPage({ params }: { params: Promise<{ id: string 
             max={500}
             value={teamCount}
             onChange={(e) => setTeamCount(parseInt(e.target.value, 10))}
-            style={{ flex: 1, accentColor: "#563d7c" }}
+            style={{ flex: 1, accentColor: "#0066ff" }}
           />
           <input
             type="number"
@@ -302,7 +302,7 @@ export default function AdvancedPage({ params }: { params: Promise<{ id: string 
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: "#563d7c" }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#0066ff" }}>
                   {t.totalCredits}
                 </div>
                 <div style={{ fontSize: 9, color: "#999" }}>credits</div>

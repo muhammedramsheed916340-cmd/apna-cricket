@@ -18,7 +18,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         aria-label="Open menu"
       />
       <span className="navbar-brand mb-0 text-center">
-        <img className="tg-logo" alt="tg logo" src="/tg_dark_logo.png" />
+        <img className="tg-logo" alt="Apna Cricket logo" src="/apna_cricket_logo.png" />
       </span>
       <RefreshCw
         size={32}

@@ -1071,3 +1071,42 @@ Stage Summary:
 - authToken read from cookie (was only reading from body — caused NO_AUTH_TOKEN)
 - All errors shown inline in Failed Teams section
 - User can see what failed without being redirected away
+
+---
+Task ID: 27
+Agent: main
+Task: Rebrand from Team Generation to Apna Cricket - new logo, colors, remove all old branding
+
+Work Log:
+- Copied new logo (apna_cricket_logo.png) to public/
+- Replaced ALL old branding:
+  - "Team Generation" → "Apna Cricket" (all pages, metadata, titles)
+  - "Believer01" → "Apna Cricket" (all references)
+  - "CEO Bobby" / "Coder Bobby" → removed
+  - YouTube links → removed (side nav menu item, profile, info pages)
+  - "9848579715" phone number → removed
+  - "owner.jpg" → replaced with apna_cricket_logo.png
+  - "believer01.official@gmail.com" → "contact@apnacricket.com"
+  - "©2021 Believer01" → "©2025 Apna Cricket"
+  - "Developed By" → "Powered by"
+  - "follow us on youtube" menu item → removed entirely
+  - YouTube SVG icons → removed from all credits sections
+  - Old banners (TG Group, Dream11, Telegram, YouTube) → replaced with single Apna Cricket banner
+- Logo: replaced tg_dark_logo.png → apna_cricket_logo.png everywhere
+- Logo size: increased from 38px → 52px height (bigger, fully visible)
+- Colors changed:
+  - Header background: purple #563d7c → black #000000
+  - Border/accent: purple → blue #0066ff
+  - App background: #f5f5f5 → black #000000
+  - App border: added 2px blue #0066ff on left/right
+  - All purple (#563d7c, #5d3fd3, #5E35B1) → blue #0066ff (68 references)
+- Verified: 0 remaining "Team Generation", "Believer01", "YouTube", "Bobby", "9848579715" references
+- Lint passes cleanly (0 errors)
+
+Stage Summary:
+- Complete rebrand: Team Generation → Apna Cricket
+- New logo (apna_cricket_logo.png) used everywhere, bigger size (52px)
+- Black header + blue borders/accents (was purple)
+- All YouTube/Believer01/Bobby/phone references removed
+- Single Apna Cricket banner (was 5 old banners)
+- Transfer code NOT touched (user said "NEVER CHANGE")

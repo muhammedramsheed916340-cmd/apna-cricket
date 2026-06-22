@@ -128,7 +128,7 @@ export function MatchCard({ match }: { match: Match }) {
           </button>
           <List
             size={20}
-            style={{ color: "#563d7c", marginLeft: 7, cursor: "pointer" }}
+            style={{ color: "#0066ff", marginLeft: 7, cursor: "pointer" }}
             onClick={openMatch}
           />
         </div>

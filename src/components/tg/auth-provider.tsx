@@ -27,7 +27,7 @@ const AuthContext = createContext<AuthState>({
 
 // Auto-login user (bypass Google OAuth — not required for transfers)
 const AUTO_USER: TGUser = {
-  name: "Team Generation User",
+  name: "Apna Cricket User",
   email: "user@gmail.com",
   picture: "",
   loggedInAt: 0,

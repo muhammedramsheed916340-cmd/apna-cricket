@@ -4,9 +4,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/components/tg/auth-provider";
 
 export const metadata: Metadata = {
-  title: "Team Generation",
+  title: "Apna Cricket",
   description:
-    "Dream11 Team Generator software also known as Team generation software is the india's best software to create Grand League winning teams in Dream11,This TG software is developed by believer01 youtube channel",
+    "Dream11 Team Generator software also known as Team generation software is the india's best software to create Grand League winning teams in Dream11,This TG software is developed by Apna Cricket youtube channel",
   manifest: "/manifest.json",
   icons: {
     icon: "/favicon.ico",
@@ -19,7 +19,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#563d7c",
+  themeColor: "#0066ff",
 };
 
 export default function RootLayout({

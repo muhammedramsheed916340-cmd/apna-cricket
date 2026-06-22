@@ -75,7 +75,7 @@ export function MatchShell({
           onClick={() => router.push("/")}
         />
         <span className="navbar-brand mb-0 text-center">
-          <img className="tg-logo" alt="tg logo" src="/tg_dark_logo.png" />
+          <img className="tg-logo" alt="Apna Cricket logo" src="/apna_cricket_logo.png" />
         </span>
         <RefreshCw
           size={28}
@@ -154,13 +154,13 @@ export function MatchShell({
               padding: "10px 12px",
               fontSize: 12,
               fontWeight: active === t.id ? 700 : 500,
-              color: active === t.id ? "#563d7c" : "#6c757d",
-              borderBottom: active === t.id ? "2px solid #563d7c" : "2px solid transparent",
+              color: active === t.id ? "#0066ff" : "#6c757d",
+              borderBottom: active === t.id ? "2px solid #0066ff" : "2px solid transparent",
               background: "none",
               border: "none",
               borderBottomWidth: 2,
               borderBottomStyle: "solid",
-              borderBottomColor: active === t.id ? "#563d7c" : "transparent",
+              borderBottomColor: active === t.id ? "#0066ff" : "transparent",
               cursor: "pointer",
               whiteSpace: "nowrap",
             }}

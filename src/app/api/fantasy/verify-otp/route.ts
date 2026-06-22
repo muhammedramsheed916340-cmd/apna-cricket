@@ -5,7 +5,7 @@ import CryptoJS from "crypto-js";
 export const dynamic = "force-dynamic";
 
 const BACKEND = "https://tgsoftware-api.online";
-const AES_KEY = "coder_bobby_believer01_tg_software";
+const AES_KEY = "coder_bobby_Apna Cricket_tg_software";
 const SUPPORTED = ["dream11", "my11circle", "jumbo", "myteam11", "vision11", "myfab11"];
 
 function decryptAES(encrypted: string): string {

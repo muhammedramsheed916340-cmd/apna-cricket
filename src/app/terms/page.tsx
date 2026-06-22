@@ -1,6 +1,6 @@
 import { InfoPage } from "@/components/tg/info-page";
 
-export const metadata = { title: "Terms and Conditions - Team Generation" };
+export const metadata = { title: "Terms and Conditions - Apna Cricket" };
 
 export default function TermsPage() {
   return (
@@ -13,8 +13,8 @@ export default function TermsPage() {
         <b>1. Acceptance of Terms</b>
       </p>
       <p>
-        By accessing and using the Team Generation website (both
-        teamgeneration.in and team-generation.netlify.app) and its free services,
+        By accessing and using the Apna Cricket website (both
+        apnacricket.com and apnacricket.com) and its free services,
         you agree to these Terms and Conditions.
       </p>
 
@@ -53,7 +53,7 @@ export default function TermsPage() {
       </p>
       <p>
         All content, including suggested teams and algorithms, is the property
-        of Team Generation. You may not reproduce, copy, or redistribute our
+        of Apna Cricket. You may not reproduce, copy, or redistribute our
         content for commercial gain.
       </p>
     </InfoPage>

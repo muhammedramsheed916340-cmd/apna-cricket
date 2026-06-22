@@ -47,7 +47,7 @@ export default function ProfilePage() {
           onClick={() => setMenuOpen(true)}
         />
         <span className="navbar-brand mb-0 text-center">
-          <img className="tg-logo" alt="tg logo" src="/tg_dark_logo.png" />
+          <img className="tg-logo" alt="Apna Cricket logo" src="/apna_cricket_logo.png" />
         </span>
         <Home
           size={28}
@@ -74,7 +74,7 @@ export default function ProfilePage() {
               width: 72,
               height: 72,
               borderRadius: "50%",
-              background: user.picture ? "transparent" : "#563d7c",
+              background: user.picture ? "transparent" : "#0066ff",
               color: "#fff",
               display: "flex",
               alignItems: "center",
@@ -115,7 +115,7 @@ export default function ProfilePage() {
               boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
             }}
           >
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#563d7c" }}>0</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#0066ff" }}>0</div>
             <div style={{ fontSize: 10, color: "#6c757d" }}>Teams Generated</div>
           </div>
           <div
@@ -143,7 +143,7 @@ export default function ProfilePage() {
           }}
         >
           {[
-            { icon: Settings, label: "Settings", color: "#563d7c" },
+            { icon: Settings, label: "Settings", color: "#0066ff" },
             { icon: Bell, label: "Notifications", color: "#ffc107" },
             { icon: HelpCircle, label: "Help & Support", color: "#17a2b8" },
             { icon: Mail, label: "Contact Us", color: "#28a745", path: "/contactus" },
@@ -202,21 +202,18 @@ export default function ProfilePage() {
 
         <div className="tg-credits" style={{ marginTop: 18 }}>
           <div>
-            Developed By{" "}
+            Powered by{" "}
             <a
-              href="https://www.youtube.com/c/Believer01"
+              href="#"
               target="_blank"
               rel="noopener noreferrer"
               style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
             >
-              <span className="bel">Believer01</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="#ff0000" aria-hidden="true">
-                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-              </svg>
+              <span className="bel">Apna Cricket</span>
             </a>
           </div>
           <div style={{ color: "#6c757d", marginTop: 2 }}>
-            Refer your friends for benefits
+            ©2025 Apna Cricket — All Rights Reserved
           </div>
         </div>
       </main>

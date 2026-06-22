@@ -47,7 +47,7 @@ export default function CombinationPage({ params }: { params: Promise<{ id: stri
           style={{
             fontSize: 15,
             fontWeight: 700,
-            color: "#563d7c",
+            color: "#0066ff",
             marginBottom: 8,
             display: "flex",
             alignItems: "center",
@@ -62,7 +62,7 @@ export default function CombinationPage({ params }: { params: Promise<{ id: stri
         </p>
 
         <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
-          Selected: <span style={{ color: "#563d7c" }}>{selected.length}</span>
+          Selected: <span style={{ color: "#0066ff" }}>{selected.length}</span>
         </div>
       </div>
 
@@ -79,7 +79,7 @@ export default function CombinationPage({ params }: { params: Promise<{ id: stri
                 gap: 10,
                 padding: "12px 14px",
                 background: isSel ? "#f5f0fa" : "#fff",
-                border: isSel ? "1px solid #563d7c" : "1px solid #eee",
+                border: isSel ? "1px solid #0066ff" : "1px solid #eee",
                 borderRadius: 8,
                 cursor: "pointer",
                 textAlign: "left",
@@ -91,7 +91,7 @@ export default function CombinationPage({ params }: { params: Promise<{ id: stri
                   height: 22,
                   borderRadius: "50%",
                   border: isSel ? "none" : "2px solid #ccc",
-                  background: isSel ? "#563d7c" : "transparent",
+                  background: isSel ? "#0066ff" : "transparent",
                   flexShrink: 0,
                   display: "flex",
                   alignItems: "center",

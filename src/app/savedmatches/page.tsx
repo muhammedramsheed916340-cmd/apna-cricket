@@ -55,7 +55,7 @@ export default function SavedMatchesPage() {
           onClick={() => setMenuOpen(true)}
         />
         <span className="navbar-brand mb-0 text-center">
-          <img className="tg-logo" alt="tg logo" src="/tg_dark_logo.png" />
+          <img className="tg-logo" alt="Apna Cricket logo" src="/apna_cricket_logo.png" />
         </span>
         <Home
           size={28}

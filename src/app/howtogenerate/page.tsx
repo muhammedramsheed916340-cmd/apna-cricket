@@ -1,6 +1,6 @@
 import { InfoPage } from "@/components/tg/info-page";
 
-export const metadata = { title: "How To Generate? - Team Generation" };
+export const metadata = { title: "How To Generate? - Apna Cricket" };
 
 export default function HowToGeneratePage() {
   return (

@@ -1,6 +1,6 @@
 import { InfoPage } from "@/components/tg/info-page";
 
-export const metadata = { title: "Best Tips - Team Generation" };
+export const metadata = { title: "Best Tips - Apna Cricket" };
 
 export default function BestTipsPage() {
   return (

@@ -51,7 +51,7 @@
   --card-foreground: #212529;
   --popover: #ffffff;
   --popover-foreground: #212529;
-  --primary: #563d7c;
+  --primary: #0066ff;
   --primary-foreground: #ffffff;
   --secondary: #e9ecef;
   --secondary-foreground: #212529;
@@ -62,8 +62,8 @@
   --destructive: #dc3545;
   --border: #dee2e6;
   --input: #dee2e6;
-  --ring: #563d7c;
-  --tg-purple: #563d7c;
+  --ring: #0066ff;
+  --tg-purple: #0066ff;
   --tg-success: #28a745;
   --tg-warning: #ffc107;
   --tg-danger: #dc3545;
@@ -127,32 +127,36 @@
   }
 }
 
-/* ===== Team Generation custom styles ===== */
+/* ===== Apna Cricket custom styles ===== */
 .tg-app {
   max-width: 600px;
   margin: 0 auto;
   min-height: 100vh;
-  background: #f5f5f5;
+  background: #000000;
   position: relative;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 0 20px rgba(0, 100, 255, 0.15);
+  border-left: 2px solid #0066ff;
+  border-right: 2px solid #0066ff;
 }
 
 /* Header */
 .tg-header {
-  background-color: #563d7c;
+  background-color: #000000;
   color: #fff;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 0;
+  padding: 8px 0;
   position: sticky;
   top: 0;
   z-index: 40;
+  border-bottom: 2px solid #0066ff;
 }
 .tg-header .tg-logo {
-  height: 38px;
+  height: 52px;
   width: auto;
   object-fit: contain;
+  max-width: 180px;
 }
 
 /* Sport tabs (top nav) */
@@ -178,8 +182,8 @@
   border-bottom: 2px solid transparent;
 }
 .sport-icon-active {
-  color: #563d7c;
-  border-bottom: 2px solid #563d7c;
+  color: #0066ff;
+  border-bottom: 2px solid #0066ff;
 }
 
 /* Bottom nav */
@@ -222,7 +226,7 @@
   right: 14px;
   font-size: 30px;
   cursor: pointer;
-  color: #563d7c;
+  color: #0066ff;
   line-height: 1;
 }
 
@@ -284,7 +288,7 @@
 
 /* Buttons */
 .btn-tg-primary {
-  background: #563d7c;
+  background: #0066ff;
   color: #fff;
   border: none;
   border-radius: 4px;

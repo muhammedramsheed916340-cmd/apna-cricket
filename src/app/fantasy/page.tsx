@@ -199,7 +199,7 @@ export default function FantasyPage() {
           onClick={() => setMenuOpen(true)}
         />
         <span className="navbar-brand mb-0 text-center">
-          <img className="tg-logo" alt="tg logo" src="/tg_dark_logo.png" />
+          <img className="tg-logo" alt="Apna Cricket logo" src="/apna_cricket_logo.png" />
         </span>
         <Home
           size={28}
@@ -221,7 +221,7 @@ export default function FantasyPage() {
             gap: 6,
           }}
         >
-          <Shield size={18} color="#563d7c" /> Fantasy App Preference
+          <Shield size={18} color="#0066ff" /> Fantasy App Preference
         </h4>
         <p style={{ fontSize: 12, color: "#6c757d", marginBottom: 12 }}>
           Link your fantasy platforms (Dream11, My11Circle, Jumbo) via OTP to
@@ -362,7 +362,7 @@ export default function FantasyPage() {
           }}
         >
           <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Send size={18} color="#563d7c" />
+            <Send size={18} color="#0066ff" />
             <span style={{ fontSize: 13, fontWeight: 600 }}>
               Go to Transfer Arena
             </span>
@@ -466,7 +466,7 @@ export default function FantasyPage() {
                     onChange={(e) =>
                       setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))
                     }
-                    placeholder="9848579715"
+                    placeholder=""
                     style={{
                       flex: 1,
                       border: "none",
@@ -634,7 +634,7 @@ export default function FantasyPage() {
                     style={{
                       background: "none",
                       border: "none",
-                      color: resendTimer > 0 ? "#999" : "#563d7c",
+                      color: resendTimer > 0 ? "#999" : "#0066ff",
                       fontSize: 12,
                       fontWeight: 600,
                       cursor: resendTimer > 0 ? "not-allowed" : "pointer",

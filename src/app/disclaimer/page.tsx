@@ -1,6 +1,6 @@
 import { InfoPage } from "@/components/tg/info-page";
 
-export const metadata = { title: "Disclaimer - Team Generation" };
+export const metadata = { title: "Disclaimer - Apna Cricket" };
 
 export default function DisclaimerPage() {
   return (
@@ -17,7 +17,7 @@ export default function DisclaimerPage() {
         <b>1. Compliance with Indian Law (Online Gaming Act, 2025)</b>
       </p>
       <p>
-        Team Generation strictly adheres to the{" "}
+        Apna Cricket strictly adheres to the{" "}
         <b>Promotion and Regulation of Online Gaming Act, 2025</b>.{" "}
         <b>Our service is entirely FREE-TO-PLAY and does NOT involve any Real
         Money Gaming (RMG) or cash stakes</b>.
@@ -41,7 +41,7 @@ export default function DisclaimerPage() {
         <b>informational, educational, and entertainment purposes</b>.
       </p>
       <p>
-        Team Generation provides{" "}
+        Apna Cricket provides{" "}
         <b style={{ color: "#dc3545" }}>NO GUARANTEE</b> of winning any contest on
         any third-party fantasy platform. Your success depends on your own
         research and decisions.
@@ -51,7 +51,7 @@ export default function DisclaimerPage() {
         <b>3. Affiliation</b>
       </p>
       <p>
-        Team Generation is an independent service. We are{" "}
+        Apna Cricket is an independent service. We are{" "}
         <b>NOT affiliated, associated, authorized, endorsed by, or in any way
         officially connected</b> with Dream11, MyTeam11, or any other third-party
         fantasy sports platform.
@@ -61,7 +61,7 @@ export default function DisclaimerPage() {
         <b>4. Limitation of Liability</b>
       </p>
       <p>
-        Team Generation and its owners are{" "}
+        Apna Cricket and its owners are{" "}
         <b style={{ color: "#dc3545" }}>not liable for any losses</b>, financial
         or otherwise, incurred by you as a result of using our suggested teams or
         any information provided on this website.

@@ -1,6 +1,6 @@
 import { InfoPage } from "@/components/tg/info-page";
 
-export const metadata = { title: "Privacy Policy - Team Generation" };
+export const metadata = { title: "Privacy Policy - Apna Cricket" };
 
 export default function PrivacyPolicyPage() {
   return (
@@ -13,7 +13,7 @@ export default function PrivacyPolicyPage() {
         <b>1. Data Collection (Google OAuth)</b>
       </p>
       <p>
-        When you sign up or log in to Team Generation, we use Google OAuth to
+        When you sign up or log in to Apna Cricket, we use Google OAuth to
         securely collect the following information{" "}
         <b>solely for user authentication and profile creation</b>:
       </p>
@@ -42,7 +42,7 @@ export default function PrivacyPolicyPage() {
         </li>
         <li>
           <b>Opt-out:</b> Users may opt out of personalized advertising by
-          visiting the <a href="https://www.google.com/settings/ads" target="_blank" rel="noopener noreferrer" style={{ color: "#563d7c" }}>Google Ad Settings</a> page.
+          visiting the <a href="https://www.google.com/settings/ads" target="_blank" rel="noopener noreferrer" style={{ color: "#0066ff" }}>Google Ad Settings</a> page.
         </li>
         <li>
           <b>Data Use:</b> The information collected by AdSense (which may
@@ -66,7 +66,7 @@ export default function PrivacyPolicyPage() {
       </p>
       <p>
         If you have any questions about this Privacy Policy, please contact us
-        at: <a href="mailto:believer01.official@gmail.com" style={{ color: "#563d7c" }}>believer01.official@gmail.com</a>
+        at: <a href="mailto:Apna Cricket.official@gmail.com" style={{ color: "#0066ff" }}>Apna Cricket.official@gmail.com</a>
       </p>
     </InfoPage>
   );

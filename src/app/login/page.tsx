@@ -20,7 +20,7 @@ export default function LoginPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: "Team Generation User",
+        name: "Apna Cricket User",
         email: "user@gmail.com",
         picture: "",
       }),
@@ -35,13 +35,13 @@ export default function LoginPage() {
       <nav className="tg-header" style={{ justifyContent: "space-between", alignItems: "center" }}>
         <Menu size={32} className="text-white" style={{ marginLeft: 5, cursor: "pointer" }} onClick={() => setMenuOpen(true)} />
         <span className="navbar-brand mb-0 text-center">
-          <img className="tg-logo" alt="tg logo" src="/tg_dark_logo.png" />
+          <img className="tg-logo" alt="Apna Cricket logo" src="/apna_cricket_logo.png" />
         </span>
         <Home size={28} className="text-white" style={{ marginRight: 8, cursor: "pointer" }} onClick={() => router.push("/")} />
       </nav>
 
       <main style={{ padding: "40px 16px", textAlign: "center", color: "#6c757d" }}>
-        <Loader2 size={32} className="animate-spin" style={{ color: "#563d7c", marginBottom: 12 }} />
+        <Loader2 size={32} className="animate-spin" style={{ color: "#0066ff", marginBottom: 12 }} />
         <div style={{ fontSize: 14, fontWeight: 600, color: "#212529" }}>Signing you in…</div>
       </main>
 

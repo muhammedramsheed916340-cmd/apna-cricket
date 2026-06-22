@@ -90,7 +90,7 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
         }}
       >
         <div style={statBox}>
-          <Users size={14} color="#563d7c" />
+          <Users size={14} color="#0066ff" />
           <div>
             <div style={statNum}>{selectedPlayers.length}/11</div>
             <div style={statLabel}>Players Selected</div>
@@ -242,7 +242,7 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
                           width: 28,
                           height: 28,
                           borderRadius: "50%",
-                          background: p.team === "left" ? "#563d7c" : "#dc3545",
+                          background: p.team === "left" ? "#0066ff" : "#dc3545",
                           color: "#fff",
                           display: "flex",
                           alignItems: "center",
@@ -274,7 +274,7 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
                         <div
                           style={{
                             fontWeight: 700,
-                            color: "#563d7c",
+                            color: "#0066ff",
                             fontSize: 13,
                           }}
                         >
