@@ -11,10 +11,6 @@ const PLATFORM_LIMITS: Record<string, number> = {
   jumbo: 50,
 };
 
-// Real fantasy platform transfer endpoints per app slug.
-// Matches the ORIGINAL teamgeneration.in source:
-//   - ALL platforms use /api/fantasy/add-team as primary, /api/fantasy/edit-team for replace
-//   - Dream11 also has /api/classic/dream11/addteam as a fallback for add
 const PLATFORM_ENDPOINTS: Record<string, { add: string[]; edit: string[] }> = {
   dream11: {
     add: ["/api/fantasy/add-team", "/api/classic/dream11/addteam"],
@@ -28,14 +24,6 @@ const PLATFORM_ENDPOINTS: Record<string, { add: string[]; edit: string[] }> = {
     add: ["/api/fantasy/add-team"],
     edit: ["/api/fantasy/edit-team"],
   },
-  vision11: {
-    add: ["/api/fantasy/add-team"],
-    edit: ["/api/fantasy/edit-team"],
-  },
-  myteam11: {
-    add: ["/api/fantasy/add-team"],
-    edit: ["/api/fantasy/edit-team"],
-  },
 };
 
 const DEFAULT_ENDPOINTS = {
@@ -43,21 +31,15 @@ const DEFAULT_ENDPOINTS = {
   edit: ["/api/fantasy/edit-team"],
 };
 
-interface TransferReq {
-  matchId?: string;
-  fantasyApp?: "dream11" | "my11circle" | "jumbo";
-  teams?: any[];
-  action?: "single" | "all" | "bulk" | "join-contests" | "replace";
-  fromIdx?: number;
-  toIdx?: number;
-  batchCount?: number;
-  replaceTeamId?: number; // for replace action: the existing team ID to replace
-}
+const LIST_ENDPOINTS: Record<string, string[]> = {
+  dream11: ["/api/fantasy/list-of-teams", "/api/classic/dream11/list-of-teams"],
+  my11circle: ["/api/fantasy/list-of-teams", "/api/classic/my11circle/list-of-teams"],
+  jumbo: ["/api/fantasy/list-of-teams"],
+};
 
-// Check if a backend response is a confirmed token expiry
 function isTokenExpired(errorMsg: string, data: any): boolean {
   const lower = (errorMsg || "").toLowerCase();
-  const confirmedErrors = [
+  const confirmed = [
     "invalid token",
     "token expired",
     "session expired",
@@ -70,11 +52,53 @@ function isTokenExpired(errorMsg: string, data: any): boolean {
     "proxy returned 401",
     "proxy returned 403",
   ];
-  for (const c of confirmedErrors) {
-    if (lower.includes(c)) return true;
-  }
+  for (const c of confirmed) if (lower.includes(c)) return true;
   if (data?.validToken === false && data?.status === "fail") return true;
   return false;
+}
+
+// Fetch existing teams on the fantasy platform for this match
+async function fetchExistingTeams(
+  fantasyApp: string,
+  matchId: string,
+  authToken: string
+): Promise<any[]> {
+  const endpoints = LIST_ENDPOINTS[fantasyApp] || ["/api/fantasy/list-of-teams"];
+  const payload = { fantasyApp, matchId: String(matchId), authToken };
+  for (const endpoint of endpoints) {
+    try {
+      const res = await fetch(`${BACKEND}${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: "https://teamgeneration.in",
+          Referer: "https://teamgeneration.in/",
+        },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data?.status === "success" && Array.isArray(data.teams_list)) {
+        return data.teams_list;
+      }
+      const lower = (data?.message || "").toLowerCase();
+      if (lower.includes("invalid token") || lower.includes("token expired")) break;
+    } catch {
+      /* try next */
+    }
+  }
+  return [];
+}
+
+interface TransferReq {
+  matchId?: string;
+  fantasyApp?: string;
+  teams?: any[];
+  // transfer mode: "all" (edit existing + add new), "newOnly" (add only), "custom" (X edit + Y add), "replace" (edit specific team)
+  mode?: "all" | "newOnly" | "custom" | "replace";
+  customReplaceCount?: number;
+  customAddCount?: number;
+  replaceTeamId?: number;
 }
 
 export async function POST(req: Request) {
@@ -84,10 +108,9 @@ export async function POST(req: Request) {
       matchId,
       fantasyApp = "dream11",
       teams = [],
-      action = "all",
-      fromIdx,
-      toIdx,
-      batchCount,
+      mode = "all",
+      customReplaceCount = 0,
+      customAddCount = 0,
       replaceTeamId,
     } = body;
 
@@ -98,7 +121,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verify the fantasy account is linked
     const store = await cookies();
     const raw = store.get(`tg_fantasy_${fantasyApp}`)?.value;
     if (!raw) {
@@ -125,59 +147,12 @@ export async function POST(req: Request) {
     const authToken = account.authToken;
     if (!authToken) {
       return NextResponse.json(
-        {
-          status: "error",
-          message: "No auth token. Please re-link your account.",
-          code: "NO_TOKEN",
-        },
+        { status: "error", message: "No auth token", code: "NO_TOKEN" },
         { status: 401 }
       );
     }
 
-    const limit = PLATFORM_LIMITS[fantasyApp] || 40;
-
-    // Determine the team range
-    let startIdx = 0;
-    let endIdx = 0;
-    let teamList: number[] = [];
-
-    if (action === "bulk") {
-      startIdx = fromIdx ?? 0;
-      endIdx = toIdx ?? startIdx + (batchCount ?? limit) - 1;
-      const total = endIdx - startIdx + 1;
-      if (total > 500) {
-        return NextResponse.json(
-          { status: "error", message: "Maximum 500 teams per bulk transfer" },
-          { status: 400 }
-        );
-      }
-      if (total > limit) {
-        return NextResponse.json(
-          {
-            status: "error",
-            message: `Batch exceeds ${fantasyApp} limit of ${limit} teams. Reduce the range.`,
-          },
-          { status: 400 }
-        );
-      }
-      for (let i = startIdx; i <= endIdx; i++) teamList.push(i + 1);
-    } else if (action === "single" || action === "replace") {
-      teamList = teams.map((t) => t.team_number);
-    } else {
-      teamList =
-        teams.length > 0
-          ? teams.map((t) => t.team_number)
-          : Array.from({ length: batchCount || 5 }, (_, i) => i + 1);
-      if (teamList.length > limit) {
-        return NextResponse.json(
-          {
-            status: "error",
-            message: `Exceeds ${fantasyApp} limit of ${limit} teams per batch`,
-          },
-          { status: 400 }
-        );
-      }
-    }
+    const maxTeams = PLATFORM_LIMITS[fantasyApp] || 40;
 
     // Fetch stored generated teams
     const storedRaw = store.get(`tg_teams_${matchId}`)?.value;
@@ -193,44 +168,101 @@ export async function POST(req: Request) {
     const allTeamsMap = new Map<number, any>();
     for (const t of storedTeams) allTeamsMap.set(t.team_number, t);
     for (const t of teams) allTeamsMap.set(t.team_number, t);
+    const selectedTeams = (teams.length > 0 ? teams : storedTeams).slice(0, maxTeams);
+
+    if (selectedTeams.length === 0) {
+      return NextResponse.json({
+        status: "error",
+        message: "No generated teams to transfer. Generate teams first.",
+        code: "NO_TEAMS",
+      });
+    }
+
+    // Fetch existing teams on the platform (for replace logic)
+    const existingTeams = await fetchExistingTeams(fantasyApp, matchId, authToken);
+    const presentTeamCount = existingTeams.length;
+    const newSlots = Math.max(0, maxTeams - presentTeamCount);
+
+    // Decide how many to edit (replace) vs add (new) based on mode
+    let teamsToEdit: number;
+    let teamsToAdd: number;
+    if (mode === "newOnly") {
+      teamsToEdit = 0;
+      teamsToAdd = Math.min(selectedTeams.length, newSlots);
+    } else if (mode === "custom") {
+      teamsToEdit = Math.min(
+        Math.max(0, customReplaceCount),
+        presentTeamCount,
+        selectedTeams.length
+      );
+      teamsToAdd = Math.min(
+        Math.max(0, customAddCount),
+        newSlots,
+        selectedTeams.length - teamsToEdit
+      );
+    } else if (mode === "replace") {
+      // Replace a specific team ID
+      teamsToEdit = 1;
+      teamsToAdd = 0;
+    } else {
+      // mode === "all" (default): edit existing, add rest as new
+      teamsToEdit = Math.min(presentTeamCount, selectedTeams.length);
+      teamsToAdd = selectedTeams.length - teamsToEdit;
+    }
 
     const config = PLATFORM_ENDPOINTS[fantasyApp] || DEFAULT_ENDPOINTS;
-    const isReplace = action === "replace";
-    const endpointChain = isReplace ? config.edit : config.add;
+    const transferred: any[] = [];
+    const failed: any[] = [];
+    const totalToProcess = teamsToEdit + teamsToAdd;
 
-    const transferred: { team_number: number; status: string; contestId?: string; replaced?: boolean }[] = [];
-    const failed: { team_number: number; error: string }[] = [];
+    for (let i = 0; i < totalToProcess; i++) {
+      const team = selectedTeams[i];
+      const isEdit = i < teamsToEdit;
 
-    for (const teamNum of teamList) {
-      const teamData = allTeamsMap.get(teamNum);
-
-      if (!teamData) {
-        failed.push({
-          team_number: teamNum,
-          error: "No generated team for this number. Generate teams first.",
-        });
-        continue;
-      }
-
-      // Extract numeric player IDs (fantasyId) — the real backend requires NUMBERS, not objects
-      const playerIds: number[] = (teamData.players || [])
-        .map((p: any) => (typeof p === "number" ? p : p.fantasyId || (p.id ? parseInt(String(p.id).replace(/\D/g, ""), 10) || 0 : 0)))
+      // Extract numeric player IDs
+      const playerIds: number[] = (team.players || [])
+        .map((p: any) =>
+          typeof p === "number" ? p : p.fantasyId || 0
+        )
         .filter((id: number) => id > 0);
 
-      const captainPlayer = teamData.captain;
-      const vcPlayer = teamData.vicecaptain;
-      const captainId = typeof captainPlayer === "object" ? (captainPlayer.fantasyId || 0) : (captainPlayer || 0);
-      const viceCaptainId = typeof vcPlayer === "object" ? (vcPlayer.fantasyId || 0) : (vcPlayer || 0);
-
-      if (playerIds.length !== 11 || captainId === 0 || viceCaptainId === 0) {
+      if (playerIds.length < 11) {
         failed.push({
-          team_number: teamNum,
-          error: `Invalid team data (${playerIds.length} players, C:${captainId}, VC:${viceCaptainId}). Need 11 players with numeric IDs.`,
+          team_number: team.team_number,
+          error: `Only ${playerIds.length} players with fantasy IDs (need 11).`,
         });
         continue;
       }
 
-      // Build the REAL payload format (matches original teamgeneration.in)
+      const captainPlayer = team.captain;
+      const vcPlayer = team.vicecaptain;
+      const captainId =
+        typeof captainPlayer === "object"
+          ? captainPlayer.fantasyId || 0
+          : captainPlayer || 0;
+      const viceCaptainId =
+        typeof vcPlayer === "object"
+          ? vcPlayer.fantasyId || 0
+          : vcPlayer || 0;
+
+      if (!captainId || !viceCaptainId) {
+        failed.push({
+          team_number: team.team_number,
+          error: "Invalid captain/vice-captain IDs.",
+        });
+        continue;
+      }
+
+      // For edit: use the existing team's ID (or the specified replaceTeamId)
+      let existingTeamId: string | number | undefined;
+      if (isEdit) {
+        if (mode === "replace" && replaceTeamId) {
+          existingTeamId = replaceTeamId;
+        } else if (existingTeams[i]) {
+          existingTeamId = existingTeams[i].team_id;
+        }
+      }
+
       const payload: Record<string, unknown> = {
         matchId,
         captain: captainId,
@@ -239,16 +271,15 @@ export async function POST(req: Request) {
         fantasyApp,
         authToken,
         sportIndex: 0,
-        type: isReplace ? "edit" : "new",
+        type: isEdit ? "edit" : "new",
       };
-
-      // For replace (edit), include the team ID to replace
-      if (isReplace && replaceTeamId) {
-        payload.id = replaceTeamId;
-        payload.team_id = replaceTeamId;
-        payload.team_number = replaceTeamId;
+      if (isEdit && existingTeamId !== undefined) {
+        payload.id = existingTeamId;
+        payload.team_id = existingTeamId;
+        payload.team_number = existingTeamId;
       }
 
+      const endpointChain = isEdit ? config.edit : config.add;
       let teamTransferred = false;
       let lastError = "Transfer failed";
 
@@ -266,32 +297,20 @@ export async function POST(req: Request) {
           });
           const upData = await upRes.json().catch(() => ({}));
 
-          // ONLY status === "success" is a real success (matches original APK)
           if (upData?.status === "success") {
             transferred.push({
-              team_number: teamNum,
+              team_number: team.team_number,
               status: "transferred",
-              replaced: isReplace,
-              contestId:
-                action === "join-contests"
-                  ? `c${Math.floor(100000 + Math.random() * 900000)}`
-                  : undefined,
+              operation: isEdit ? "edit" : "add",
+              existingTeamId: existingTeamId,
             });
             teamTransferred = true;
             break;
           } else {
             lastError = upData?.message || upData?.error || "Transfer failed";
-            // Token expiry -> stop trying fallbacks
-            if (isTokenExpired(lastError, upData)) {
-              break;
-            }
-            // Rate limit -> stop, surface error
+            if (isTokenExpired(lastError, upData)) break;
             const lower = lastError.toLowerCase();
-            if (lower.includes("still processing") || lower.includes("try again later")) {
-              lastError = "We are still processing your last request. Please try again later.";
-              break;
-            }
-            // Otherwise try next endpoint
+            if (lower.includes("still processing") || lower.includes("try again later")) break;
           }
         } catch (e) {
           lastError = (e as Error).message;
@@ -299,43 +318,28 @@ export async function POST(req: Request) {
       }
 
       if (!teamTransferred) {
-        failed.push({ team_number: teamNum, error: lastError });
+        failed.push({ team_number: team.team_number, error: lastError });
       }
     }
 
     const hash = `${fantasyApp}_${matchId}_${Date.now().toString(36)}`;
-
-    const verb = isReplace ? "replaced" : "transferred";
-    const messages: Record<string, string> = {
-      single:
-        transferred.length > 0
-          ? `Team ${verb} to ${fantasyApp}`
-          : `${isReplace ? "Replace" : "Transfer"} failed`,
-      all: `${transferred.length}/${teamList.length} teams ${verb} to ${fantasyApp}`,
-      bulk: `Bulk ${isReplace ? "replace" : "transfer"}: ${transferred.length}/${teamList.length} teams (Team #${startIdx + 1} to #${endIdx + 1}) ${verb} to ${fantasyApp}`,
-      "join-contests": `Contests joined for ${transferred.length}/${teamList.length} teams on ${fantasyApp}`,
-      replace: `${transferred.length}/${teamList.length} teams replaced on ${fantasyApp}`,
-    };
+    const verb = teamsToEdit > 0 ? "replaced/added" : "transferred";
 
     return NextResponse.json({
       status: transferred.length > 0 ? "success" : "error",
-      action,
       fantasyApp,
       matchId,
       hash,
-      account: {
-        mobileNumber: account.mobileNumber,
-        linked: true,
-      },
-      range:
-        action === "bulk"
-          ? { from: startIdx + 1, to: endIdx + 1, count: teamList.length }
-          : undefined,
+      account: { mobileNumber: account.mobileNumber, linked: true },
+      mode,
+      existingTeamsCount: presentTeamCount,
+      newSlots,
+      teamsToEdit,
+      teamsToAdd,
       transferred: transferred.length,
       teams: transferred,
       failed,
-      operation: isReplace ? "edit" : "add",
-      message: messages[action],
+      message: `${transferred.length}/${totalToProcess} teams ${verb} (${teamsToEdit} edit, ${teamsToAdd} new)`,
       transferredAt: Date.now(),
     });
   } catch (e) {
