@@ -844,3 +844,46 @@ Stage Summary:
   - my11circleMobile = String(mobileNumber)
 - Matches real teamgeneration.in source exactly
 - With valid OTP-linked My11Circle account, replace should now work
+
+---
+Task ID: 21
+Agent: main
+Task: Fix transfer - match original teamgeneration.in payload EXACTLY
+
+Work Log:
+- Analyzed original teamgeneration.in JS bundle for the EXACT transfer payload
+- Found CRITICAL differences between my payload and the real source:
+  1. My code sent 'type: "new"/"edit"' field — REAL source does NOT send 'type'
+     The add vs edit is determined by the ENDPOINT (addEndpoints vs editEndpoints),
+     NOT by a 'type' field in the payload
+  2. My code sent 'mobileNumber' for ALL platforms — REAL source only sends
+     my11circleMobile for My11Circle (not generic mobileNumber)
+  3. My code converted id to String() — REAL source sends as-is
+  4. My code converted my11circle fields to String() — REAL source sends as-is
+- FIX: Removed ALL extra fields, now matches real source EXACTLY:
+  payload = {
+    matchId,
+    captain: captainId,        // number
+    vice_captain: viceCaptainId, // number
+    players: playerIds,        // array of numbers
+    fantasyApp,
+    authToken,                 // full raw token, as-is
+    sportIndex: 0,
+  }
+  // For edit ONLY:
+  payload.id = existingTeamId  // as-is, no String()
+  // For My11Circle ONLY:
+  payload.my11circleChallenge = account.my11circleChallenge  // as-is
+  payload.my11circleUserId = account.my11circleUserId        // as-is
+  payload.my11circleMobile = account.mobileNumber            // as-is
+- NO 'type' field, NO 'mobileNumber' (except my11circleMobile for M11)
+- Verified via dev log: correct payload sent to real backend
+- Lint passes cleanly (0 errors)
+
+Stage Summary:
+- Transfer payload now matches original teamgeneration.in EXACTLY:
+  - No 'type' field (endpoint determines add vs edit)
+  - No extra 'mobileNumber' field (only my11circleMobile for My11Circle)
+  - id sent as-is (not String converted)
+  - my11circle fields sent as-is (not String converted)
+- With valid OTP-linked account, transfer should now succeed

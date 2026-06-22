@@ -309,7 +309,7 @@ export async function POST(req: Request) {
       // Debug: log the platform-specific IDs being sent
       console.log(`[Transfer][${fantasyApp}] Team ${team.team_number}: players=${JSON.stringify(playerIds)}, captain=${captainId}, vice_captain=${viceCaptainId}, isEdit=${isEdit}, existingTeamId=${existingTeamId || "N/A"}, hasChallenge=${!!account.my11circleChallenge}, hasUserId=${!!account.my11circleUserId}`);
 
-      // Send token AS-IS (matching original teamgeneration.in)
+      // Send token AS-IS (matching original teamgeneration.in EXACTLY)
       // Do NOT extract accessToken — backend expects the full token
       const payload: Record<string, unknown> = {
         matchId,
@@ -319,18 +319,16 @@ export async function POST(req: Request) {
         fantasyApp,
         authToken,
         sportIndex: 0,
-        type: isEdit ? "edit" : "new",
       };
       if (isEdit && existingTeamId !== undefined) {
-        payload.id = String(existingTeamId);
+        payload.id = existingTeamId;
       }
-      // My11Circle-specific fields (convert to String like real source)
+      // My11Circle-specific fields (matching real source - no String conversion)
       if (fantasyApp === "my11circle") {
-        if (account.my11circleChallenge) payload.my11circleChallenge = String(account.my11circleChallenge);
-        if (account.my11circleUserId) payload.my11circleUserId = String(account.my11circleUserId);
-        if (account.mobileNumber) payload.my11circleMobile = String(account.mobileNumber);
+        if (account.my11circleChallenge) payload.my11circleChallenge = account.my11circleChallenge;
+        if (account.my11circleUserId) payload.my11circleUserId = account.my11circleUserId;
+        if (account.mobileNumber) payload.my11circleMobile = account.mobileNumber;
       }
-      if (account.mobileNumber) payload.mobileNumber = account.mobileNumber;
 
       const endpointChain = isEdit ? config.edit : config.add;
       let teamTransferred = false;
