@@ -1043,3 +1043,31 @@ Stage Summary:
 - Frontend sends individual fields per team (not whole team objects)
 - Platform-specific fantasy IDs extracted correctly
 - Bearer optional (bypass mode works)
+
+---
+Task ID: 26
+Agent: main
+Task: Fix login/relink redirects - was redirecting on every failure
+
+Work Log:
+- ROOT CAUSE: New transfer API read authToken from request body only.
+  Frontend didn't send authToken in body (it's in cookie).
+  → API returned NO_AUTH_TOKEN → transfer page redirected to /fantasy
+  → User saw "relink" on every transfer attempt
+- FIX 1: Transfer API now reads authToken from COOKIE if not in body:
+  - Checks `tg_fantasy_{platform}` cookie
+  - Extracts authToken + my11circle fields from stored account
+  - Falls back to body if cookie not available
+- FIX 2: Removed ALL redirect-to-/fantasy from transfer page:
+  - TOKEN_EXPIRED: was redirecting to /fantasy, now just records error + stops
+  - NO_AUTH_TOKEN: was redirecting to /fantasy, now just shows toast
+  - Account not linked: was redirecting to /fantasy, now just shows toast
+- No more forced redirects — user stays on the transfer page
+- Errors shown in Failed Teams section instead of kicking user out
+- Lint passes cleanly (0 errors)
+
+Stage Summary:
+- No more "relink" redirects — transfer page stays put
+- authToken read from cookie (was only reading from body — caused NO_AUTH_TOKEN)
+- All errors shown inline in Failed Teams section
+- User can see what failed without being redirected away

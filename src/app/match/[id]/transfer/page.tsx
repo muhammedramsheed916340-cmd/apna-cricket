@@ -140,10 +140,9 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
     if (!currentAccount) {
       toast({
         title: "Account not linked",
-        description: `Please link your ${currentPlatform.name} account first`,
+        description: `Please link your ${currentPlatform.name} account via OTP first`,
         variant: "destructive",
       });
-      router.push("/fantasy");
       return;
     }
     const stored = getTeams(matchId);
@@ -280,9 +279,11 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
           setTransferred([...allTransferred]);
         } else {
           if (data?.code === "TOKEN_EXPIRED" || data?.code === "NO_AUTH_TOKEN") {
-            toast({ title: "Re-link required", description: data.error, variant: "destructive" });
+            // Don't redirect — just record the error and continue
+            allFailed.push({ team_number: team.team_number, error: data?.error || "Session expired. Re-link via OTP." });
+            setFailedTeams([...allFailed]);
+            // Stop transferring remaining teams (they'll all fail too)
             stopped = true;
-            router.push("/fantasy");
             break;
           }
           allFailed.push({ team_number: team.team_number, error: data?.error || data?.message || "Transfer failed" });

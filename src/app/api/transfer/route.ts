@@ -88,7 +88,7 @@ interface TransferReq {
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as TransferReq;
-    const {
+    let {
       authToken,
       matchId,
       captain,
@@ -105,7 +105,26 @@ export async function POST(req: Request) {
       userToken,
     } = body;
 
-    // Validation — EXACT match to original
+    // If authToken not in body, read from cookie (linked account)
+    if (!authToken) {
+      const store = await cookies();
+      const raw = store.get(`tg_fantasy_${fantasyApp}`)?.value;
+      if (raw) {
+        try {
+          const account = JSON.parse(Buffer.from(raw, "base64").toString("utf-8"));
+          authToken = account.authToken;
+          // Also load my11circle fields from cookie if not in body
+          if (fantasyApp === "my11circle") {
+            if (!my11circleChallenge && account.my11circleChallenge) my11circleChallenge = account.my11circleChallenge;
+            if (!my11circleUserId && account.my11circleUserId) my11circleUserId = account.my11circleUserId;
+            if (!my11circleMobile && account.mobileNumber) my11circleMobile = account.mobileNumber;
+          }
+          if (!mobileNumber && account.mobileNumber) mobileNumber = account.mobileNumber;
+        } catch {}
+      }
+    }
+
+    // Validation
     if (!authToken) {
       return NextResponse.json({
         status: "fail",
