@@ -1,0 +1,71 @@
+"use client";
+
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+
+export interface TGUser {
+  name: string;
+  email: string;
+  picture: string;
+  loggedInAt: number;
+}
+
+interface AuthState {
+  user: TGUser | null;
+  authChecked: boolean;
+  login: (user: TGUser) => void;
+  logout: () => Promise<void>;
+  refresh: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthState>({
+  user: null,
+  authChecked: false,
+  login: () => {},
+  logout: async () => {},
+  refresh: async () => {},
+});
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<TGUser | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  const refresh = async () => {
+    try {
+      const res = await fetch("/api/auth/session", { cache: "no-store" });
+      const data = await res.json();
+      setUser(data?.user || null);
+    } catch {
+      setUser(null);
+    } finally {
+      setAuthChecked(true);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const login = (u: TGUser) => {
+    setUser(u);
+    setAuthChecked(true);
+  };
+
+  const logout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      /* ignore */
+    }
+    setUser(null);
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, authChecked, login, logout, refresh }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  return useContext(AuthContext);
+}

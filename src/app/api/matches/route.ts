@@ -4,7 +4,6 @@ import { CRICKET_MATCHES, type Match } from "@/lib/matches";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-// Parse a timer string like "15h 35m 30s" into milliseconds
 function parseTimerDuration(timer: string): number {
   let ms = 0;
   const h = timer.match(/(\d+)\s*h/i);
@@ -16,8 +15,6 @@ function parseTimerDuration(timer: string): number {
   return ms;
 }
 
-// Fetch live match data from the original teamgeneration.in site and parse the
-// server-rendered match cards so the countdown timers stay real & current.
 async function fetchLiveMatches(): Promise<Match[] | null> {
   try {
     const res = await fetch("https://teamgeneration.in/", {
@@ -52,8 +49,16 @@ async function fetchLiveMatches(): Promise<Match[] | null> {
 
       if (series && leftName && rightName && timer) {
         const targetTime = serverNow + parseTimerDuration(timer);
+        // Map to our known match IDs based on team names so player data links up
+        const idMap: Record<string, string> = {
+          "NZ-SCO": "nz-sco-wt20",
+          "SL-IRE": "sl-ire-wt20",
+          "AUS-PAK": "aus-pak-wt20",
+        };
+        const key = `${leftName}-${rightName}`;
+        const id = idMap[key] || `live-${idx}`;
         matches.push({
-          id: `live-${idx}`,
+          id,
           series,
           sport: "cricket",
           leftTeam: { name: leftName, flag: leftFlag },

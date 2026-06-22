@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Star, Save, List } from "lucide-react";
 import { formatCountdown, type Match } from "@/lib/matches";
+import { useAuth } from "@/components/tg/auth-provider";
 
 export function MatchCard({ match }: { match: Match }) {
   const router = useRouter();
   const [now, setNow] = useState<number>(() => Date.now());
+  const { user, authChecked } = useAuth();
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -20,14 +22,45 @@ export function MatchCard({ match }: { match: Match }) {
     return "badge badge-outline-danger";
   };
 
+  const openMatch = () => {
+    if (authChecked && user) {
+      router.push(`/match/${match.id}/section`);
+    } else {
+      router.push(`/login?redirect=/match/${match.id}/section`);
+    }
+  };
+
+  const saveMatch = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!authChecked) return;
+    if (!user) {
+      router.push(`/login?redirect=/match/${match.id}/section`);
+      return;
+    }
+    // Save to localStorage as "saved match"
+    try {
+      const saved = JSON.parse(localStorage.getItem("tg_saved_matches") || "[]");
+      if (!saved.find((m: Match) => m.id === match.id)) {
+        saved.push(match);
+        localStorage.setItem("tg_saved_matches", JSON.stringify(saved));
+      }
+      router.push(`/savedmatches`);
+    } catch {
+      /* ignore */
+    }
+  };
+
   return (
-    <div className="match-card">
+    <div className="match-card" style={{ cursor: "pointer" }} onClick={openMatch}>
       <div>
         <div
           className="d-flex justify-content-between border-bottom"
           style={{ marginLeft: 10, marginRight: 10, padding: "8px 0" }}
         >
-          <div className="d-flex align-items-center" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div
+            className="d-flex align-items-center"
+            style={{ display: "flex", alignItems: "center", gap: 6 }}
+          >
             <Star size={18} className="vp-blink" />
             <span className="series-name">{match.series}</span>
           </div>
@@ -44,7 +77,10 @@ export function MatchCard({ match }: { match: Match }) {
             padding: "10px 0",
           }}
         >
-          <div className="combine-image" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div
+            className="combine-image"
+            style={{ display: "flex", alignItems: "center", gap: 6 }}
+          >
             <img className="team-image" alt="left" src={match.leftTeam.flag} />
             <span className="left-team-name">{match.leftTeam.name}</span>
           </div>
@@ -58,7 +94,10 @@ export function MatchCard({ match }: { match: Match }) {
           >
             <div className="timer">{formatCountdown(match.targetTime, now)}</div>
           </div>
-          <div className="combine-image" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div
+            className="combine-image"
+            style={{ display: "flex", alignItems: "center", gap: 6 }}
+          >
             <span className="right-team-name">{match.rightTeam.name}</span>
             <img className="team-image" alt="right" src={match.rightTeam.flag} />
           </div>
@@ -84,6 +123,7 @@ export function MatchCard({ match }: { match: Match }) {
           <button
             type="button"
             className="btn-tg-primary"
+            onClick={saveMatch}
             style={{
               padding: "2px 8px",
               fontSize: 12,
@@ -99,7 +139,7 @@ export function MatchCard({ match }: { match: Match }) {
           <List
             size={20}
             style={{ color: "#563d7c", marginLeft: 7, cursor: "pointer" }}
-            onClick={() => router.push("/login")}
+            onClick={openMatch}
           />
         </div>
       </div>

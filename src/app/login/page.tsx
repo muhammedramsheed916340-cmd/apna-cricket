@@ -1,14 +1,59 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Menu, Home, Shield, Zap, Trophy, Target, Lightbulb } from "lucide-react";
+import { Menu, Home, Shield, Zap, Trophy, Target, Lightbulb, Loader2 } from "lucide-react";
 import { SideNav } from "@/components/tg/side-nav";
 import { BottomNav } from "@/components/tg/bottom-nav";
 
 export default function LoginPage() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [redirect, setRedirect] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Check if already logged in -> redirect to home or intended match
+    const params = new URLSearchParams(window.location.search);
+    const r = params.get("redirect");
+    if (r) setRedirect(r);
+    fetch("/api/auth/session", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.user) {
+          router.push(r || "/");
+        }
+      })
+      .catch(() => {});
+  }, [router]);
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    try {
+      // Google OAuth-style login: in a full deployment this would use Google
+      // Identity Services. Here we issue a server session via the auth API
+      // using a representative Google profile payload.
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Team Generation User",
+          email: "user@gmail.com",
+          picture: "",
+        }),
+      });
+      const data = await res.json();
+      if (data?.status === "success") {
+        router.push(redirect || "/");
+      } else {
+        alert(data?.message || "Login failed");
+      }
+    } catch (e) {
+      alert("Login failed: " + (e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="tg-app">
@@ -35,7 +80,6 @@ export default function LoginPage() {
       </nav>
 
       <main style={{ padding: "20px 16px 24px" }}>
-        {/* Greeting */}
         <div style={{ marginBottom: 8, fontSize: 22, fontWeight: 700, color: "#212529" }}>
           Welcome 👋
         </div>
@@ -46,25 +90,25 @@ export default function LoginPage() {
           Sign in to create high quality teams, transfer and join seamlessly.
         </div>
 
-        {/* Illustration */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-          <img
-            src="https://i.ibb.co/3SHqJqL/login-illustration.png"
-            alt="login illustration"
-            style={{ width: "70%", maxWidth: 240 }}
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = "none";
-            }}
-          />
+          <svg width="160" height="140" viewBox="0 0 200 180" aria-hidden="true">
+            <rect x="20" y="40" width="100" height="70" rx="6" fill="#563d7c" opacity="0.15" />
+            <rect x="35" y="55" width="70" height="8" rx="3" fill="#563d7c" />
+            <rect x="35" y="70" width="50" height="6" rx="3" fill="#563d7c" opacity="0.6" />
+            <rect x="35" y="82" width="60" height="6" rx="3" fill="#563d7c" opacity="0.6" />
+            <circle cx="155" cy="80" r="28" fill="#28a745" opacity="0.18" />
+            <circle cx="155" cy="70" r="10" fill="#28a745" />
+            <path d="M140 100 q15 18 30 0" stroke="#28a745" strokeWidth="3" fill="none" />
+            <circle cx="40" cy="135" r="10" fill="#f0ad4e" opacity="0.7" />
+            <circle cx="60" cy="135" r="10" fill="#e67e22" opacity="0.7" />
+            <circle cx="160" cy="135" r="10" fill="#17a2b8" opacity="0.7" />
+          </svg>
         </div>
 
-        {/* Google sign-in */}
         <button
           type="button"
-          onClick={() => {
-            /* Google OAuth placeholder - sign-in flow */
-            alert("Google sign-in is not configured in this demo build.");
-          }}
+          onClick={handleGoogleLogin}
+          disabled={loading}
           style={{
             width: "100%",
             background: "#fff",
@@ -78,32 +122,24 @@ export default function LoginPage() {
             fontSize: 15,
             fontWeight: 500,
             color: "#212529",
-            cursor: "pointer",
+            cursor: loading ? "wait" : "pointer",
             boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+            opacity: loading ? 0.7 : 1,
           }}
         >
-          <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
-            <path
-              fill="#FFC107"
-              d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"
-            />
-            <path
-              fill="#FF3D00"
-              d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"
-            />
-            <path
-              fill="#4CAF50"
-              d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"
-            />
-            <path
-              fill="#1976D2"
-              d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"
-            />
-          </svg>
-          Sign in with Google
+          {loading ? (
+            <Loader2 size={20} className="animate-spin" />
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+              <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
+              <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z" />
+              <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" />
+              <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
+            </svg>
+          )}
+          {loading ? "Signing in…" : "Sign in with Google"}
         </button>
 
-        {/* Feature cards */}
         <div
           style={{
             display: "grid",
@@ -141,14 +177,7 @@ export default function LoginPage() {
           })}
         </div>
 
-        {/* Stats */}
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            marginTop: 14,
-          }}
-        >
+        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
           <div
             style={{
               flex: 1,
@@ -183,7 +212,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* WhatsApp help */}
         <a
           href="https://wa.me/919848579715"
           target="_blank"
@@ -214,7 +242,6 @@ export default function LoginPage() {
           </span>
         </a>
 
-        {/* Footer */}
         <div className="tg-credits" style={{ marginTop: 18 }}>
           <div>
             Developed By{" "}
