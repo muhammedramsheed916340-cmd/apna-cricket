@@ -9,7 +9,7 @@ export function BannerCarousel() {
   useEffect(() => {
     const t = setInterval(() => {
       setIdx((i) => (i + 1) % BANNERS.length);
-    }, 3500);
+    }, 4000);
     return () => clearInterval(t);
   }, []);
 
@@ -24,40 +24,59 @@ export function BannerCarousel() {
       <div
         style={{
           display: "flex",
-          transition: "transform 0.5s ease",
+          transition: "transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
           transform: `translateX(-${idx * 100}%)`,
         }}
       >
-        {BANNERS.map((b) => (
+        {BANNERS.map((b, i) => (
           <div
-            key={b.alt + b.src}
-            style={{ minWidth: "100%", cursor: "pointer" }}
+            key={i}
+            style={{ minWidth: "100%", cursor: "pointer", position: "relative" }}
             onClick={() => open(b.href)}
           >
             <img src={b.src} alt={b.alt} />
+            {/* Gradient overlay for better text visibility */}
+            <div
+              style={{
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: "50%",
+                background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent)",
+              }}
+            />
           </div>
         ))}
       </div>
+
+      {/* Dots */}
       <div
         style={{
           position: "absolute",
-          bottom: 8,
+          bottom: 10,
           left: 0,
           right: 0,
           display: "flex",
           justifyContent: "center",
-          gap: 6,
+          gap: 8,
+          zIndex: 2,
         }}
       >
         {BANNERS.map((_, i) => (
           <span
             key={i}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIdx(i);
+            }}
             style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: i === idx ? "#fff" : "rgba(255,255,255,0.5)",
-              transition: "background 0.3s",
+              width: i === idx ? 24 : 8,
+              height: 8,
+              borderRadius: 4,
+              background: i === idx ? "#00b050" : "rgba(255,255,255,0.6)",
+              transition: "all 0.3s ease",
+              cursor: "pointer",
             }}
           />
         ))}

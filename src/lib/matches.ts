@@ -1,24 +1,57 @@
-// Real match data - fetched live from tgsoftware-api.online and decrypted.
-// Falls back to captured real match IDs (113523/113524/113525) if fetch fails.
+export const BANNERS = [
+  {
+    alt: "Apna Cricket - Fantasy Team Generator",
+    src: "/apna_cricket_logo.png",
+    href: "#",
+  },
+  {
+    alt: "Dream11 Teams",
+    src: "https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=800&h=400&fit=crop",
+    href: "#",
+  },
+  {
+    alt: "Cricket Stadium",
+    src: "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=800&h=400&fit=crop",
+    href: "#",
+  },
+  {
+    alt: "Cricket Action",
+    src: "https://images.unsplash.com/photo-1593796145377-30e2b1d9c4d1?w=800&h=400&fit=crop",
+    href: "#",
+  },
+  {
+    alt: "Cricket Bat and Ball",
+    src: "https://images.unsplash.com/photo-1593241331797-1eaa8e2d4c1f?w=800&h=400&fit=crop",
+    href: "#",
+  },
+];
+
+export function formatCountdown(target: number, now: number): string {
+  let diff = target - now;
+  if (diff < 0) diff = 0;
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  return `${h}h ${m}m ${s}s`;
+}
+
+export const SPORTS = [
+  { id: "cricket", label: "Cricket" },
+  { id: "football", label: "Football" },
+  { id: "basketball", label: "Basketball" },
+  { id: "kabaddi", label: "Kabaddi" },
+] as const;
 
 export interface Match {
   id: string;
   series: string;
   sport: "cricket" | "football" | "basketball" | "kabaddi";
-  leftTeam: {
-    name: string;
-    flag: string;
-  };
-  rightTeam: {
-    name: string;
-    flag: string;
-  };
+  leftTeam: { name: string; flag: string };
+  rightTeam: { name: string; flag: string };
   badges: ("Mega GL" | "SL" | "H2H")[];
   targetTime: number;
 }
 
-// REAL match IDs from decrypted tgsoftware-api.online data
-// 113523 = NZ vs SCO, 113524 = SL vs IRE, 113525 = AUS vs PAK (Women's T20 World Cup)
 const H = 3600 * 1000;
 
 export const CRICKET_MATCHES: Match[] = [
@@ -68,27 +101,3 @@ export const CRICKET_MATCHES: Match[] = [
     targetTime: Date.now() + 23 * H,
   },
 ];
-
-export const BANNERS = [
-  {
-    alt: "Apna Cricket",
-    src: "/apna_cricket_logo.png",
-    href: "#",
-  },
-];
-
-export const SPORTS = [
-  { id: "cricket", label: "Cricket" },
-  { id: "football", label: "Football" },
-  { id: "basketball", label: "Basketball" },
-  { id: "kabaddi", label: "Kabaddi" },
-] as const;
-
-export function formatCountdown(target: number, now: number): string {
-  let diff = target - now;
-  if (diff < 0) diff = 0;
-  const h = Math.floor(diff / H);
-  const m = Math.floor((diff % H) / (60 * 1000));
-  const s = Math.floor((diff % (60 * 1000)) / 1000);
-  return `${h}h ${m}m ${s}s`;
-}
