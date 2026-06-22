@@ -4,12 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Star, Save, List } from "lucide-react";
 import { formatCountdown, type Match } from "@/lib/matches";
-import { useAuth } from "@/components/tg/auth-provider";
 
 export function MatchCard({ match }: { match: Match }) {
   const router = useRouter();
   const [now, setNow] = useState<number>(() => Date.now());
-  const { user, authChecked } = useAuth();
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -23,20 +21,12 @@ export function MatchCard({ match }: { match: Match }) {
   };
 
   const openMatch = () => {
-    if (authChecked && user) {
-      router.push(`/match/${match.id}/section`);
-    } else {
-      router.push(`/login?redirect=/match/${match.id}/section`);
-    }
+    // Always authenticated (auto-login bypass) — go straight to match detail.
+    router.push(`/match/${match.id}/section`);
   };
 
   const saveMatch = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!authChecked) return;
-    if (!user) {
-      router.push(`/login?redirect=/match/${match.id}/section`);
-      return;
-    }
     // Save to localStorage as "saved match"
     try {
       const saved = JSON.parse(localStorage.getItem("tg_saved_matches") || "[]");

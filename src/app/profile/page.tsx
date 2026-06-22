@@ -13,21 +13,20 @@ export default function ProfilePage() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    if (authChecked && !user) {
-      router.replace("/login?redirect=/profile");
-    }
+    // Auto-login bypass: always authenticated. No login redirect.
   }, [authChecked, user, router]);
 
   const handleLogout = async () => {
+    // Auto-login bypass: logout re-creates the session immediately.
     await logout();
     router.push("/");
   };
 
-  if (authChecked && !user) {
+  if (!authChecked) {
     return (
       <div className="tg-app">
         <div style={{ padding: 40, textAlign: "center", color: "#6c757d" }}>
-          Redirecting to login…
+          Loading…
         </div>
       </div>
     );

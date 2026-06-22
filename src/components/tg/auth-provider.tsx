@@ -25,6 +25,16 @@ const AuthContext = createContext<AuthState>({
   refresh: async () => {},
 });
 
+// Default auto-login user (Google OAuth-style profile).
+// The app always treats visitors as authenticated — the Google login screen
+// is bypassed and a session is created automatically on first visit.
+const AUTO_USER: TGUser = {
+  name: "Team Generation User",
+  email: "user@gmail.com",
+  picture: "",
+  loggedInAt: 0,
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<TGUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -33,9 +43,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await fetch("/api/auth/session", { cache: "no-store" });
       const data = await res.json();
-      setUser(data?.user || null);
+      if (data?.user) {
+        setUser(data.user);
+      } else {
+        // No session yet — auto-login (bypass Google login screen).
+        try {
+          const loginRes = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(AUTO_USER),
+          });
+          const loginData = await loginRes.json();
+          if (loginData?.user) {
+            setUser(loginData.user);
+          } else {
+            setUser(AUTO_USER);
+          }
+        } catch {
+          setUser(AUTO_USER);
+        }
+      }
     } catch {
-      setUser(null);
+      setUser(AUTO_USER);
     } finally {
       setAuthChecked(true);
     }
@@ -56,7 +85,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
-    setUser(null);
+    // Even after logout, immediately re-create the session so the user
+    // stays logged in (bypass mode).
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(AUTO_USER),
+      });
+      const data = await res.json();
+      setUser(data?.user || AUTO_USER);
+    } catch {
+      setUser(AUTO_USER);
+    }
   };
 
   return (

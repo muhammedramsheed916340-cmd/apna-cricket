@@ -16,9 +16,7 @@ export default function SavedMatchesPage() {
   const [saved, setSaved] = useState<Match[]>([]);
 
   useEffect(() => {
-    if (authChecked && !user) {
-      router.replace("/login?redirect=/savedmatches");
-    }
+    // Auto-login bypass: always authenticated. No login redirect.
   }, [authChecked, user, router]);
 
   useEffect(() => {
@@ -36,11 +34,11 @@ export default function SavedMatchesPage() {
     localStorage.setItem("tg_saved_matches", JSON.stringify(next));
   };
 
-  if (authChecked && !user) {
+  if (!authChecked) {
     return (
       <div className="tg-app">
         <div style={{ padding: 40, textAlign: "center", color: "#6c757d" }}>
-          Redirecting to login…
+          Loading…
         </div>
       </div>
     );

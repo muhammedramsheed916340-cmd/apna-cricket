@@ -16,9 +16,7 @@ export default function MyMatchesPage() {
   const [matches, setMatches] = useState<Match[]>(CRICKET_MATCHES);
 
   useEffect(() => {
-    if (authChecked && !user) {
-      router.replace("/login?redirect=/mymatches");
-    }
+    // Auto-login bypass: always authenticated. No login redirect.
   }, [authChecked, user, router]);
 
   useEffect(() => {
@@ -30,11 +28,11 @@ export default function MyMatchesPage() {
       .catch(() => {});
   }, []);
 
-  if (authChecked && !user) {
+  if (!authChecked) {
     return (
       <div className="tg-app">
         <div style={{ padding: 40, textAlign: "center", color: "#6c757d" }}>
-          Redirecting to login…
+          Loading…
         </div>
       </div>
     );

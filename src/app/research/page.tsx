@@ -37,16 +37,14 @@ export default function ResearchPage() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    if (authChecked && !user) {
-      router.replace("/login?redirect=/research");
-    }
+    // Auto-login bypass: always authenticated. No login redirect.
   }, [authChecked, user, router]);
 
-  if (authChecked && !user) {
+  if (!authChecked) {
     return (
       <div className="tg-app">
         <div style={{ padding: 40, textAlign: "center", color: "#6c757d" }}>
-          Redirecting to login…
+          Loading…
         </div>
       </div>
     );

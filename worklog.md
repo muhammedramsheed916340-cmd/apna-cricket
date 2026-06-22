@@ -96,3 +96,37 @@ Stage Summary:
 - Captain/VC/Combination selection pages work
 - My Matches, Saved Matches, Research, Profile all work
 - Full authenticated flow verified end-to-end via browser
+
+---
+Task ID: 4
+Agent: main
+Task: Skip/bypass Google login - always already logged in
+
+Work Log:
+- Updated AuthProvider (src/components/tg/auth-provider.tsx):
+  - On mount, if no session exists, automatically calls /api/auth/login to create one (AUTO_USER)
+  - User is always authenticated — no login screen ever shown
+  - logout() now immediately re-creates the session (stays logged in)
+- Updated login page (src/app/login/page.tsx):
+  - Removed Google sign-in button and feature cards
+  - Now shows "Signing you in…" spinner and auto-calls /api/auth/login then redirects to target/home
+  - Wrapped in Suspense boundary
+- Removed all login redirect gates:
+  - MatchCard: always goes to /match/:id/section (no /login?redirect)
+  - BottomNav: always goes to /mymatches, /research, /profile directly
+  - MatchShell: removed login redirect, renders page once authChecked
+  - /mymatches, /savedmatches, /research, /profile: removed login redirect gates
+- Browser-verified with cleared cookies:
+  - Direct visit to /match/nz-sco-wt20/section → renders section page (no login)
+  - Home → click match → goes straight to section page (no login)
+  - Bottom nav My matches/Research/User → go directly to pages (no login)
+  - Profile logout → re-creates session, stays logged in
+  - Full flow: smart generation (5 teams) → transfer arena all work without login
+
+Stage Summary:
+- Google login screen is now SKIPPED/BYPASSED entirely
+- User is ALWAYS already logged in (auto-login on first visit via AuthProvider)
+- All protected pages (match detail, my matches, research, profile, transfer) accessible directly
+- Logout keeps user logged in (re-creates session)
+- Lint passes cleanly (0 errors)
+- Browser-verified end-to-end with fresh session (cleared cookies)

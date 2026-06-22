@@ -28,9 +28,7 @@ export function MatchShell({
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
-    if (authChecked && !user) {
-      router.replace(`/login?redirect=/match/${matchId}/${active}`);
-    }
+    // Auto-login bypass: user is always authenticated. No login redirect.
   }, [authChecked, user, matchId, active, router]);
 
   useEffect(() => {
@@ -48,15 +46,8 @@ export function MatchShell({
     );
   }
 
-  if (!user) {
-    return (
-      <div className="tg-app">
-        <div style={{ padding: 40, textAlign: "center", color: "#6c757d" }}>
-          Redirecting to login…
-        </div>
-      </div>
-    );
-  }
+  // Even if user object is briefly null during auto-login, render the page.
+  // The session is created automatically by AuthProvider.
 
   const m = match || CRICKET_MATCHES[0];
   const tabs = [

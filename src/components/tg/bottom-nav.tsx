@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { Home, Clock, Search, User } from "lucide-react";
-import { useAuth } from "./auth-provider";
 
 const ITEMS = [
   { id: "home", label: "Home", icon: Home, path: "/" },
@@ -13,19 +12,18 @@ const ITEMS = [
 
 export function BottomNav({ active = "home" }: { active?: string }) {
   const router = useRouter();
-  const { user } = useAuth();
 
   return (
     <div className="tg-footer">
       {ITEMS.map((it) => {
         const Icon = it.icon;
         const isActive = active === it.id;
-        const target = !user && it.id !== "home" ? `/login?redirect=${it.path}` : it.path;
+        // Always authenticated (auto-login bypass) — go straight to page.
         return (
           <div
             key={it.id}
             className={`sport-icon ${isActive ? "sport-icon-active" : ""}`}
-            onClick={() => router.push(target)}
+            onClick={() => router.push(it.path)}
             role="button"
             tabIndex={0}
           >
