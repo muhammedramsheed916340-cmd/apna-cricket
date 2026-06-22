@@ -20,6 +20,7 @@ async function getRealPlayers(matchId: string): Promise<Player[]> {
       credits: p.credits,
       selBy: p.selectedBy,
       fantasyId: p.fantasyId,
+      fantasyIdList: p.fantasyIdList,
     }));
   } catch {
     return getMatchPlayers(matchId);

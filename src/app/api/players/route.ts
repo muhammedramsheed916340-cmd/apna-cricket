@@ -33,6 +33,7 @@ export async function GET(req: Request) {
     credits: p.credits,
     selBy: p.selectedBy,
     fantasyId: p.fantasyId,
+    fantasyIdList: p.fantasyIdList,
     image: p.image,
     playing: p.playing,
     captainPercentage: p.captainPercentage,

@@ -9,7 +9,8 @@ export interface Player {
   team: "left" | "right";
   credits: number;
   selBy: number; // selection %
-  fantasyId: number; // numeric ID for the fantasy platform backend
+  fantasyId: number; // Dream11 ID (default)
+  fantasyIdList?: Array<{ name: string; id: number }>; // per-platform IDs
 }
 
 const NZ_WT20: Player[] = [

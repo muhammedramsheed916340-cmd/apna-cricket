@@ -236,21 +236,40 @@ export async function POST(req: Request) {
     const failed: any[] = [];
     const totalToProcess = teamsToEdit + teamsToAdd;
 
+    // Helper: get the platform-specific fantasy ID for a player
+    const getPlatformId = (p: any, platform: string): number => {
+      if (typeof p === "number") return p;
+      // Check fantasyIdList for the specific platform
+      if (p.fantasyIdList && Array.isArray(p.fantasyIdList)) {
+        const found = p.fantasyIdList.find(
+          (f: any) => f.name === platform
+        );
+        if (found && found.id) return found.id;
+      }
+      // Fall back to default fantasyId (Dream11)
+      return p.fantasyId || 0;
+    };
+
+    // Platform-specific delay between transfers to avoid rate limiting
+    // (My11Circle is especially strict: "We are still processing your last request")
+    const transferDelay = fantasyApp === "my11circle" ? 800 : fantasyApp === "jumbo" ? 500 : 200;
+
     for (let i = 0; i < totalToProcess; i++) {
+      // Delay between teams (skip on first team)
+      if (i > 0) await new Promise((r) => setTimeout(r, transferDelay));
+
       const team = selectedTeams[i];
       const isEdit = i < teamsToEdit;
 
-      // Extract numeric player IDs
+      // Extract numeric player IDs FOR THIS PLATFORM (not just Dream11)
       const playerIds: number[] = (team.players || [])
-        .map((p: any) =>
-          typeof p === "number" ? p : p.fantasyId || 0
-        )
+        .map((p: any) => getPlatformId(p, fantasyApp))
         .filter((id: number) => id > 0);
 
       if (playerIds.length < 11) {
         failed.push({
           team_number: team.team_number,
-          error: `Only ${playerIds.length} players with fantasy IDs (need 11).`,
+          error: `Only ${playerIds.length} players with ${fantasyApp} IDs (need 11). Some players may not be available on ${fantasyApp}.`,
         });
         continue;
       }
@@ -259,11 +278,11 @@ export async function POST(req: Request) {
       const vcPlayer = team.vicecaptain;
       const captainId =
         typeof captainPlayer === "object"
-          ? captainPlayer.fantasyId || 0
+          ? getPlatformId(captainPlayer, fantasyApp)
           : captainPlayer || 0;
       const viceCaptainId =
         typeof vcPlayer === "object"
-          ? vcPlayer.fantasyId || 0
+          ? getPlatformId(vcPlayer, fantasyApp)
           : vcPlayer || 0;
 
       if (!captainId || !viceCaptainId) {
@@ -273,6 +292,9 @@ export async function POST(req: Request) {
         });
         continue;
       }
+
+      // Debug: log the platform-specific IDs being sent
+      console.log(`[Transfer][${fantasyApp}] Team ${team.team_number}: players=${JSON.stringify(playerIds)}, captain=${captainId}, vice_captain=${viceCaptainId}`);
 
       // For edit: use the existing team's ID (or the specified replaceTeamId)
       let existingTeamId: string | number | undefined;
