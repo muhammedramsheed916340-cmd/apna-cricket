@@ -223,9 +223,14 @@ export async function POST(req: Request) {
       teamsToEdit = 1;
       teamsToAdd = 0;
     } else {
-      // mode === "all" (default): edit existing, add rest as new
-      teamsToEdit = Math.min(presentTeamCount, selectedTeams.length);
-      teamsToAdd = selectedTeams.length - teamsToEdit;
+      // mode === "all" (default): ADD new teams to empty slots FIRST,
+      // then replace existing teams for the remainder.
+      // This prioritizes adding new teams over replacing existing ones.
+      teamsToAdd = Math.min(selectedTeams.length, newSlots);
+      teamsToEdit = Math.min(
+        selectedTeams.length - teamsToAdd,
+        presentTeamCount
+      );
     }
 
     const config = PLATFORM_ENDPOINTS[fantasyApp] || DEFAULT_ENDPOINTS;

@@ -780,3 +780,34 @@ Stage Summary:
   - Live counters: transferred / failed / remaining
   - Current team number being processed
 - No more "buffer style" (just spinner) — now shows real progress
+
+---
+Task ID: 19
+Agent: main
+Task: Fix Mode 1 "all" - was replacing existing instead of adding new teams
+
+Work Log:
+- User reports: "Dream11 10 team transfer added 1 only, my11circle 10 transfer 0 added"
+- Screenshots showed:
+  - Dream11: 10/10 transferred but only 1 ADD (9 were EDIT/replace)
+  - My11Circle: 10/10 transferred but 0 ADD (all 10 were EDIT/replace)
+- ROOT CAUSE: Mode 1 "all" (default) did:
+    teamsToEdit = min(presentTeamCount, selectedTeams.length)  // min(39, 10) = 10
+    teamsToAdd = selectedTeams.length - teamsToEdit             // 10 - 10 = 0
+  This replaced ALL 10 teams (0 added) when existing teams were present.
+- FIX: Reversed the priority — ADD new teams to empty slots FIRST, then replace:
+    teamsToAdd = min(selectedTeams.length, newSlots)            // min(10, 1) = 1
+    teamsToEdit = min(selectedTeams.length - teamsToAdd, presentTeamCount)  // min(9, 39) = 9
+- Now: 10 teams + 1 new slot + 39 existing -> add 1 NEW + replace 9 (was: replace 10, add 0)
+- Updated Mode 1 description:
+  - Old: "Mode 1: Replace + Add — Replace 10 existing + add 0 new"
+  - New: "Mode 1: Add New + Replace — Add 1 new + replace 9 existing"
+- Updated Start Transfer button count
+- Verified formula: teamsToAdd=1, teamsToEdit=9 for user's scenario
+- Lint passes cleanly (0 errors)
+
+Stage Summary:
+- Mode 1 "all" now ADDS new teams to empty slots FIRST (was replacing all)
+- User's scenario: 10 teams + 1 empty slot -> 1 ADD + 9 REPLACE (was 0 ADD + 10 REPLACE)
+- Mode 2 "Add New Only" still available for pure add (no replace)
+- Mode 3 "Custom" still available for manual X replace + Y add

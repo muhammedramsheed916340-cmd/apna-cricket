@@ -378,9 +378,9 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
               >
                 <Edit3 size={16} color="#563d7c" />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#212529" }}>Mode 1: Replace + Add</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#212529" }}>Mode 1: Add New + Replace</div>
                   <div style={{ fontSize: 10, color: "#6c757d" }}>
-                    Replace {Math.min(presentTeamCount, totalTeams)} existing + add {Math.max(0, totalTeams - presentTeamCount)} new
+                    Add {Math.min(totalTeams, newSlots)} new + replace {Math.max(0, totalTeams - newSlots)} existing
                   </div>
                 </div>
               </button>
@@ -487,7 +487,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
               </>
             ) : (
               <>
-                <Send size={16} /> Start Transfer ({transferMode === "all" ? Math.min(presentTeamCount, totalTeams) + Math.max(0, totalTeams - presentTeamCount) : transferMode === "newOnly" ? Math.min(totalTeams, newSlots) : customReplaceCount + customAddCount} teams)
+                <Send size={16} /> Start Transfer ({transferMode === "all" ? totalTeams : transferMode === "newOnly" ? Math.min(totalTeams, newSlots) : customReplaceCount + customAddCount} teams)
               </>
             )}
           </button>
