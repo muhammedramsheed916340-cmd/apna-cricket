@@ -715,3 +715,31 @@ Stage Summary:
   - Should now achieve near-100% success on real OTP-linked accounts
 - Dream11/Jumbo: delays also increased for stability
 - Clear error messages for all failure scenarios
+
+---
+Task ID: 17
+Agent: main
+Task: Fix Dream11 transfer - was extracting accessToken (broke the token)
+
+Work Log:
+- User reports: "Dream11 already added my real account" but transfers still fail
+- Compared real source (real3) vs my code:
+  - REAL source: preparedToken = String(authToken) — sends FULL token AS-IS
+  - MY code: was extracting accessToken from JSON wrapper for Dream11
+    (if token starts with "{", parse and extract parsed.accessToken)
+- ROOT CAUSE: The backend expects the FULL raw token (including JSON wrapper
+  like {"accessToken":"eyJ...","refreshToken":"..."}), NOT just the extracted
+  accessToken JWT. My extraction was BREAKING valid tokens.
+- FIX: Removed ALL accessToken extraction:
+  1. Transfer API: removed effectiveAuthToken extraction, sends authToken as-is
+  2. list-of-teams API: removed extraction, sends authToken as-is
+  3. verify-otp: already stores rawToken (was correct)
+- Now token flows: verify-otp stores FULL raw token -> transfer sends it AS-IS
+- Verified via dev log: Dream11 + My11Circle transfers now send correct tokens
+- Lint passes cleanly (0 errors)
+
+Stage Summary:
+- Dream11 transfer fixed: token sent AS-IS (was being broken by accessToken extraction)
+- All 3 platforms now send the full raw token exactly as the OTP verify returned it
+- Matches original teamgeneration.in behavior: preparedToken = String(authToken)
+- With a real OTP-linked Dream11 account, transfer should now succeed

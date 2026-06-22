@@ -59,15 +59,9 @@ export async function POST(req: Request) {
       });
     }
 
-    // For Dream11: extract accessToken from JSON wrapper if present
-    let authToken = account.authToken;
-    if (fantasyApp === "dream11" && authToken && authToken.startsWith("{")) {
-      try {
-        const parsed = JSON.parse(authToken);
-        if (typeof parsed.accessToken === "string") authToken = parsed.accessToken;
-        else if (typeof parsed.access_token === "string") authToken = parsed.access_token;
-      } catch { /* use as-is */ }
-    }
+    // Send token AS-IS (matching original teamgeneration.in)
+    // Do NOT extract accessToken — backend expects the full token
+    const authToken = account.authToken;
 
     const payload: Record<string, unknown> = {
       fantasyApp,

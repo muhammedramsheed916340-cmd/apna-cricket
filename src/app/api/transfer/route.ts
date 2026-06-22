@@ -64,21 +64,13 @@ async function fetchExistingTeams(
   authToken: string,
   account?: any
 ): Promise<any[]> {
-  // For Dream11: extract accessToken from JSON wrapper if present
-  let effectiveAuthToken = authToken;
-  if (fantasyApp === "dream11" && effectiveAuthToken.startsWith("{")) {
-    try {
-      const parsed = JSON.parse(effectiveAuthToken);
-      if (typeof parsed.accessToken === "string") effectiveAuthToken = parsed.accessToken;
-      else if (typeof parsed.access_token === "string") effectiveAuthToken = parsed.access_token;
-    } catch { /* use as-is */ }
-  }
-
+  // Send token AS-IS (matching original teamgeneration.in)
+  // Do NOT extract accessToken — the backend expects the full token
   const endpoints = LIST_ENDPOINTS[fantasyApp] || ["/api/fantasy/list-of-teams"];
   const payload: Record<string, unknown> = {
     fantasyApp,
     matchId: String(matchId),
-    authToken: effectiveAuthToken,
+    authToken,
   };
   // My11Circle-specific fields
   if (fantasyApp === "my11circle" && account) {
@@ -312,29 +304,15 @@ export async function POST(req: Request) {
         }
       }
 
-      // For Dream11: if authToken is a JSON wrapper, extract the accessToken
-      // (matching original teamgeneration.in behavior)
-      let effectiveAuthToken = authToken;
-      if (fantasyApp === "dream11" && effectiveAuthToken.startsWith("{")) {
-        try {
-          const parsed = JSON.parse(effectiveAuthToken);
-          if (typeof parsed.accessToken === "string" && parsed.accessToken.length > 20) {
-            effectiveAuthToken = parsed.accessToken;
-          } else if (typeof parsed.access_token === "string" && parsed.access_token.length > 20) {
-            effectiveAuthToken = parsed.access_token;
-          }
-        } catch {
-          /* use as-is */
-        }
-      }
-
+      // Send token AS-IS (matching original teamgeneration.in)
+      // Do NOT extract accessToken — backend expects the full token
       const payload: Record<string, unknown> = {
         matchId,
         captain: captainId,
         vice_captain: viceCaptainId,
         players: playerIds,
         fantasyApp,
-        authToken: effectiveAuthToken,
+        authToken,
         sportIndex: 0,
         type: isEdit ? "edit" : "new",
       };
