@@ -811,3 +811,36 @@ Stage Summary:
 - User's scenario: 10 teams + 1 empty slot -> 1 ADD + 9 REPLACE (was 0 ADD + 10 REPLACE)
 - Mode 2 "Add New Only" still available for pure add (no replace)
 - Mode 3 "Custom" still available for manual X replace + Y add
+
+---
+Task ID: 20
+Agent: main
+Task: Fix My11Circle replace (edit) not working
+
+Work Log:
+- User reports: "My11Circle no replacing team"
+- Screenshots showed My11Circle had 40 existing teams, 0 new slots, 10/10 transferred
+  but all 10 were "edit" (replace) — however the replace wasn't actually working
+- Found 3 bugs in the edit-team flow:
+  1. payload.id was sending team_id AND team_number (extra fields)
+     Real source only sends: payload.id = id
+     FIX: removed team_id and team_number, only send payload.id
+  2. payload.id was not converted to String
+     Real source: payload.id = id (but backend expects string)
+     FIX: payload.id = String(existingTeamId)
+  3. my11circle fields (challenge/userId/mobile) were not converted to String
+     Real source uses String() conversion
+     FIX: String(account.my11circleChallenge), String(account.my11circleUserId), etc.
+- Also removed non-existent /api/classic/my11circle/list-of-teams endpoint
+  (was returning 404 HTML, wasting time)
+- Added debug logging: isEdit, existingTeamId, hasChallenge, hasUserId
+- Lint passes cleanly (0 errors)
+
+Stage Summary:
+- My11Circle replace (edit) now sends correct payload:
+  - payload.id = String(team_id) (only id, no team_id/team_number)
+  - my11circleChallenge = String(value)
+  - my11circleUserId = String(value)
+  - my11circleMobile = String(mobileNumber)
+- Matches real teamgeneration.in source exactly
+- With valid OTP-linked My11Circle account, replace should now work

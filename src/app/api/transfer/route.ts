@@ -296,9 +296,6 @@ export async function POST(req: Request) {
         continue;
       }
 
-      // Debug: log the platform-specific IDs being sent
-      console.log(`[Transfer][${fantasyApp}] Team ${team.team_number}: players=${JSON.stringify(playerIds)}, captain=${captainId}, vice_captain=${viceCaptainId}`);
-
       // For edit: use the existing team's ID (or the specified replaceTeamId)
       let existingTeamId: string | number | undefined;
       if (isEdit) {
@@ -308,6 +305,9 @@ export async function POST(req: Request) {
           existingTeamId = existingTeams[i].team_id;
         }
       }
+
+      // Debug: log the platform-specific IDs being sent
+      console.log(`[Transfer][${fantasyApp}] Team ${team.team_number}: players=${JSON.stringify(playerIds)}, captain=${captainId}, vice_captain=${viceCaptainId}, isEdit=${isEdit}, existingTeamId=${existingTeamId || "N/A"}, hasChallenge=${!!account.my11circleChallenge}, hasUserId=${!!account.my11circleUserId}`);
 
       // Send token AS-IS (matching original teamgeneration.in)
       // Do NOT extract accessToken — backend expects the full token
@@ -322,15 +322,13 @@ export async function POST(req: Request) {
         type: isEdit ? "edit" : "new",
       };
       if (isEdit && existingTeamId !== undefined) {
-        payload.id = existingTeamId;
-        payload.team_id = existingTeamId;
-        payload.team_number = existingTeamId;
+        payload.id = String(existingTeamId);
       }
-      // My11Circle-specific fields
+      // My11Circle-specific fields (convert to String like real source)
       if (fantasyApp === "my11circle") {
-        if (account.my11circleChallenge) payload.my11circleChallenge = account.my11circleChallenge;
-        if (account.my11circleUserId) payload.my11circleUserId = account.my11circleUserId;
-        if (account.mobileNumber) payload.my11circleMobile = account.mobileNumber;
+        if (account.my11circleChallenge) payload.my11circleChallenge = String(account.my11circleChallenge);
+        if (account.my11circleUserId) payload.my11circleUserId = String(account.my11circleUserId);
+        if (account.mobileNumber) payload.my11circleMobile = String(account.mobileNumber);
       }
       if (account.mobileNumber) payload.mobileNumber = account.mobileNumber;
 

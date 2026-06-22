@@ -7,7 +7,7 @@ const BACKEND = "https://tgsoftware-api.online";
 
 const LIST_ENDPOINTS: Record<string, string[]> = {
   dream11: ["/api/fantasy/list-of-teams", "/api/classic/dream11/list-of-teams"],
-  my11circle: ["/api/fantasy/list-of-teams", "/api/classic/my11circle/list-of-teams"],
+  my11circle: ["/api/fantasy/list-of-teams"],
   jumbo: ["/api/fantasy/list-of-teams"],
 };
 
