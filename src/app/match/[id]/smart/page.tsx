@@ -132,7 +132,7 @@ export default function SmartPage({ params }: { params: Promise<{ id: string }> 
           Team Count (0-500)
         </div>
         <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
-          {[5, 10, 20, 50, 100].map((n) => (
+          {[5, 10, 20, 40, 100].map((n) => (
             <button
               key={n}
               onClick={() => setTeamCount(n)}

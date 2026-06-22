@@ -122,9 +122,11 @@ export default function GrandPage({ params }: { params: Promise<{ id: string }> 
           })}
         </div>
 
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Team Count</div>
-        <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
-          {[5, 10, 15, 20].map((n) => (
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+          Team Count (0-500)
+        </div>
+        <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+          {[5, 10, 20, 40, 100].map((n) => (
             <button
               key={n}
               onClick={() => setTeamCount(n)}
@@ -143,6 +145,34 @@ export default function GrandPage({ params }: { params: Promise<{ id: string }> 
               {n}
             </button>
           ))}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          <input
+            type="range"
+            min={0}
+            max={500}
+            value={teamCount}
+            onChange={(e) => setTeamCount(parseInt(e.target.value, 10))}
+            style={{ flex: 1, accentColor: "#563d7c" }}
+          />
+          <input
+            type="number"
+            min={0}
+            max={500}
+            value={teamCount}
+            onChange={(e) =>
+              setTeamCount(Math.max(0, Math.min(parseInt(e.target.value, 10) || 0, 500)))
+            }
+            style={{
+              width: 60,
+              padding: "4px 6px",
+              border: "1px solid #ddd",
+              borderRadius: 4,
+              fontSize: 13,
+              fontWeight: 700,
+              textAlign: "center",
+            }}
+          />
         </div>
 
         <button

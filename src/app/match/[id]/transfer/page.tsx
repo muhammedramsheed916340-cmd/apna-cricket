@@ -48,6 +48,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
   const [transferring, setTransferring] = useState(false);
   const [bulkTransferring, setBulkTransferring] = useState(false);
   const [transferred, setTransferred] = useState<number[]>([]);
+  const [failedTeams, setFailedTeams] = useState<{ team_number: number; error: string }[]>([]);
   const [bulkResult, setBulkResult] = useState<any>(null);
   const [totalTeams, setTotalTeams] = useState(20);
   const [fromIdx, setFromIdx] = useState(0);
@@ -102,10 +103,12 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
         description: `Please link your ${currentPlatform.name} account first`,
         variant: "destructive",
       });
+      router.push("/fantasy");
       return;
     }
     setTransferring(true);
     setTransferred([]);
+    setFailedTeams([]);
     try {
       const res = await fetch("/api/transfer", {
         method: "POST",
@@ -120,15 +123,35 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
       const data = await res.json();
       if (data?.status === "success") {
         setTransferred((data.teams || []).map((t: any) => t.team_number));
+        setFailedTeams(data.failed || []);
         if (data.hash) setHash(data.hash);
-        toast({ title: "Transfer successful", description: data.message });
-      } else {
         toast({
-          title: "Transfer failed",
-          description: data?.message,
-          variant: "destructive",
+          title: "Transfer complete",
+          description: data.message,
+          variant: (data.failed?.length ?? 0) > 0 ? "destructive" : "default",
         });
+      } else {
+        if (data?.code === "TOKEN_EXPIRED" || data?.code === "NOT_LINKED") {
+          toast({
+            title: "Re-link required",
+            description: data.message,
+            variant: "destructive",
+          });
+          router.push("/fantasy");
+        } else {
+          toast({
+            title: "Transfer failed",
+            description: data?.message || "Something went wrong",
+            variant: "destructive",
+          });
+        }
       }
+    } catch (e) {
+      toast({
+        title: "Transfer error",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
     } finally {
       setTransferring(false);
     }
@@ -190,9 +213,12 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
         description: `Please link your ${currentPlatform.name} account first`,
         variant: "destructive",
       });
+      router.push("/fantasy");
       return;
     }
     setTransferring(true);
+    setTransferred([]);
+    setFailedTeams([]);
     try {
       const res = await fetch("/api/transfer", {
         method: "POST",
@@ -207,13 +233,24 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
       const data = await res.json();
       if (data?.status === "success") {
         setTransferred((data.teams || []).map((t: any) => t.team_number));
+        setFailedTeams(data.failed || []);
+        if (data.hash) setHash(data.hash);
         toast({ title: "Contests Joined", description: data.message });
       } else {
-        toast({
-          title: "Failed",
-          description: data?.message,
-          variant: "destructive",
-        });
+        if (data?.code === "TOKEN_EXPIRED" || data?.code === "NOT_LINKED") {
+          toast({
+            title: "Re-link required",
+            description: data.message,
+            variant: "destructive",
+          });
+          router.push("/fantasy");
+        } else {
+          toast({
+            title: "Failed",
+            description: data?.message || "Something went wrong",
+            variant: "destructive",
+          });
+        }
       }
     } finally {
       setTransferring(false);
@@ -450,10 +487,11 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
           Quick Transfer (Teams per batch)
         </div>
         <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
-          {[1, 5, 10, 20, limit].map((n) => (
+          {[1, 5, 10, 20, 40].map((n) => (
             <button
               key={n}
               onClick={() => setBatchCount(n)}
+              disabled={n > limit}
               style={{
                 flex: 1,
                 padding: "6px 0",
@@ -464,7 +502,8 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
                 borderRadius: 4,
                 fontSize: 11,
                 fontWeight: 600,
-                cursor: "pointer",
+                cursor: n > limit ? "not-allowed" : "pointer",
+                opacity: n > limit ? 0.4 : 1,
               }}
             >
               {n}
@@ -743,6 +782,54 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
               >
                 #{n}
               </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Failed teams display */}
+      {failedTeams.length > 0 && (
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: 8,
+            padding: 14,
+            marginBottom: 12,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+            border: "1px solid #f5c6cb",
+          }}
+        >
+          <h4
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: "#dc3545",
+              marginBottom: 10,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <AlertCircle size={16} /> Failed Teams ({failedTeams.length})
+          </h4>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {failedTeams.map((f) => (
+              <div
+                key={f.team_number}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: 11,
+                  padding: "4px 8px",
+                  background: "#fdecee",
+                  borderRadius: 4,
+                }}
+              >
+                <span style={{ fontWeight: 600, color: "#dc3545" }}>
+                  Team #{f.team_number}
+                </span>
+                <span style={{ color: "#6c757d" }}>{f.error}</span>
+              </div>
             ))}
           </div>
         </div>

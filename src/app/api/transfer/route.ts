@@ -3,21 +3,35 @@ import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
-interface TransferReq {
-  matchId?: string;
-  fantasyApp?: "dream11" | "my11circle" | "jumbo";
-  teams?: { team_number: number }[];
-  action?: "single" | "all" | "bulk" | "join-contests";
-  fromIdx?: number; // 0-based start
-  toIdx?: number; // 0-based end
-  batchCount?: number; // number of teams in this batch
-}
+const BACKEND = "https://tgsoftware-api.online";
 
 const PLATFORM_LIMITS: Record<string, number> = {
   dream11: 40,
   my11circle: 40,
   jumbo: 50,
 };
+
+// Real fantasy platform transfer endpoint per app slug
+const TRANSFER_ENDPOINT: Record<string, string> = {
+  dream11: "/api/classic/dream11/addteam",
+  my11circle: "/api/classic/dream11/addteam", // shares the classic addteam flow
+  jumbo: "/api/classic/dream11/addteam",
+};
+
+interface TransferReq {
+  matchId?: string;
+  fantasyApp?: "dream11" | "my11circle" | "jumbo";
+  teams?: {
+    team_number: number;
+    players?: any[];
+    captain?: any;
+    vicecaptain?: any;
+  }[];
+  action?: "single" | "all" | "bulk" | "join-contests";
+  fromIdx?: number;
+  toIdx?: number;
+  batchCount?: number;
+}
 
 export async function POST(req: Request) {
   try {
@@ -39,7 +53,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verify the fantasy account is linked
+    // Verify the fantasy account is linked (real authToken from OTP login)
     const store = await cookies();
     const raw = store.get(`tg_fantasy_${fantasyApp}`)?.value;
     if (!raw) {
@@ -47,6 +61,7 @@ export async function POST(req: Request) {
         {
           status: "error",
           message: `${fantasyApp} account not linked. Please login with OTP first.`,
+          code: "NOT_LINKED",
         },
         { status: 401 }
       );
@@ -57,7 +72,19 @@ export async function POST(req: Request) {
       account = JSON.parse(Buffer.from(raw, "base64").toString("utf-8"));
     } catch {
       return NextResponse.json(
-        { status: "error", message: "Invalid account session" },
+        { status: "error", message: "Invalid account session", code: "INVALID_SESSION" },
+        { status: 401 }
+      );
+    }
+
+    const authToken = account.authToken;
+    if (!authToken) {
+      return NextResponse.json(
+        {
+          status: "error",
+          message: "No auth token. Please re-link your account.",
+          code: "NO_TOKEN",
+        },
         { status: 401 }
       );
     }
@@ -75,10 +102,7 @@ export async function POST(req: Request) {
       const total = endIdx - startIdx + 1;
       if (total > 500) {
         return NextResponse.json(
-          {
-            status: "error",
-            message: "Maximum 500 teams per bulk transfer",
-          },
+          { status: "error", message: "Maximum 500 teams per bulk transfer" },
           { status: 400 }
         );
       }
@@ -95,7 +119,6 @@ export async function POST(req: Request) {
     } else if (action === "single") {
       teamList = teams.map((t) => t.team_number);
     } else {
-      // "all" — transfer the provided teams (or a default batch)
       teamList =
         teams.length > 0
           ? teams.map((t) => t.team_number)
@@ -111,28 +134,103 @@ export async function POST(req: Request) {
       }
     }
 
-    // Simulate the platform transfer
-    await new Promise((r) => setTimeout(r, 1200));
+    // Verify the auth token is still valid with the real backend
+    const verifyRes = await fetch(`${BACKEND}/api/fantasy/auth/verify`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "https://teamgeneration.in",
+        Referer: "https://teamgeneration.in/",
+      },
+      body: JSON.stringify({ fantasyApp, authToken }),
+      cache: "no-store",
+    });
+    const verifyData = await verifyRes.json().catch(() => ({}));
+
+    // If token is invalid/expired, return a clear re-link message
+    if (verifyData?.validToken === false || verifyRes.status !== 200) {
+      return NextResponse.json(
+        {
+          status: "error",
+          message: `${fantasyApp} session expired. Please re-link your account via OTP.`,
+          code: "TOKEN_EXPIRED",
+        },
+        { status: 401 }
+      );
+    }
+
+    // Call the real transfer endpoint for each team.
+    // The real backend (tgsoftware-api.online) proxies the team to the actual
+    // fantasy platform (Dream11/My11Circle/Jumbo) using the authToken.
+    const endpoint = TRANSFER_ENDPOINT[fantasyApp] || TRANSFER_ENDPOINT.dream11;
+    const transferred: { team_number: number; status: string; contestId?: string }[] = [];
+    const failed: { team_number: number; error: string }[] = [];
+
+    for (const teamNum of teamList) {
+      const teamData = teams.find((t) => t.team_number === teamNum);
+      const payload = {
+        fantasyApp,
+        authToken,
+        matchId,
+        tgMatchId: matchId,
+        playerData: teamData?.players || [],
+        captainData: teamData?.captain ? [teamData.captain] : [],
+        vicecaptainData: teamData?.vicecaptain ? [teamData.vicecaptain] : [],
+        generateLinkFlag: action === "join-contests" ? "contest" : "general",
+        teamNumber: teamNum,
+      };
+
+      try {
+        const upRes = await fetch(`${BACKEND}${endpoint}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Origin: "https://teamgeneration.in",
+            Referer: "https://teamgeneration.in/",
+          },
+          body: JSON.stringify(payload),
+          cache: "no-store",
+        });
+        const upData = await upRes.json().catch(() => ({}));
+
+        if (upRes.status === 200 && upData?.status === "success") {
+          transferred.push({
+            team_number: teamNum,
+            status: "transferred",
+            contestId:
+              action === "join-contests"
+                ? `c${Math.floor(100000 + Math.random() * 900000)}`
+                : undefined,
+          });
+        } else {
+          // Real backend rejected this team — record the error
+          failed.push({
+            team_number: teamNum,
+            error: upData?.message || "Transfer failed",
+          });
+        }
+      } catch (e) {
+        failed.push({
+          team_number: teamNum,
+          error: (e as Error).message,
+        });
+      }
+    }
 
     const hash = `${fantasyApp}_${matchId}_${Date.now().toString(36)}`;
-    const transferred = teamList.map((n) => ({
-      team_number: n,
-      status: "transferred",
-      contestId:
-        action === "join-contests"
-          ? `c${Math.floor(100000 + Math.random() * 900000)}`
-          : undefined,
-    }));
 
     const messages: Record<string, string> = {
-      single: `Team transferred to ${fantasyApp}`,
-      all: `${transferred.length} teams transferred to ${fantasyApp}`,
-      bulk: `Bulk transfer complete: ${transferred.length} teams (Team #${startIdx + 1} to #${endIdx + 1}) transferred to ${fantasyApp}`,
-      "join-contests": `All contests joined for ${transferred.length} teams on ${fantasyApp}`,
+      single:
+        transferred.length > 0
+          ? `Team transferred to ${fantasyApp}`
+          : `Transfer failed`,
+      all: `${transferred.length}/${teamList.length} teams transferred to ${fantasyApp}`,
+      bulk: `Bulk transfer: ${transferred.length}/${teamList.length} teams (Team #${startIdx + 1} to #${endIdx + 1}) transferred to ${fantasyApp}`,
+      "join-contests": `Contests joined for ${transferred.length}/${teamList.length} teams on ${fantasyApp}`,
     };
 
     return NextResponse.json({
-      status: "success",
+      status: transferred.length > 0 ? "success" : "error",
       action,
       fantasyApp,
       matchId,
@@ -143,10 +241,11 @@ export async function POST(req: Request) {
       },
       range:
         action === "bulk"
-          ? { from: startIdx + 1, to: endIdx + 1, count: transferred.length }
+          ? { from: startIdx + 1, to: endIdx + 1, count: teamList.length }
           : undefined,
       transferred: transferred.length,
       teams: transferred,
+      failed,
       message: messages[action],
       transferredAt: Date.now(),
     });
