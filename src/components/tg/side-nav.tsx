@@ -9,11 +9,13 @@ import {
   Phone,
   Youtube,
   Briefcase,
+  Shield,
 } from "lucide-react";
 
 const MENU = [
   { label: "How to generate?", path: "/howtogenerate", icon: HelpCircle },
   { label: "Best tips", path: "/besttips", icon: Info },
+  { label: "Fantasy Platforms", path: "/fantasy", icon: Shield },
   { label: "Privacy Policy", path: "/privacy-policy", icon: ChevronRight },
   { label: "Terms And Conditions", path: "/terms", icon: ChevronRight },
   { label: "Disclaimer", path: "/disclaimer", icon: ChevronRight },

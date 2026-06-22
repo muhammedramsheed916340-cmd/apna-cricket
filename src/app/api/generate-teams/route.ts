@@ -67,7 +67,8 @@ export async function POST(req: Request) {
     }
 
     const teams: GeneratedTeam[] = [];
-    const count = Math.min(body.teamCount, 20);
+    // Support 0-500 teams (original app allows up to 500 generated teams)
+    const count = Math.max(0, Math.min(body.teamCount, 500));
 
     // Vary team bias per generated team for diversity
     const biases: ("left" | "right" | "balanced")[] = ["balanced", "left", "right"];
