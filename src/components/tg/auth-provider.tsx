@@ -25,9 +25,7 @@ const AuthContext = createContext<AuthState>({
   refresh: async () => {},
 });
 
-// Default auto-login user (Google OAuth-style profile).
-// The app always treats visitors as authenticated — the Google login screen
-// is bypassed and a session is created automatically on first visit.
+// Auto-login user (bypass Google OAuth — not required for transfers)
 const AUTO_USER: TGUser = {
   name: "Team Generation User",
   email: "user@gmail.com",
@@ -46,22 +44,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data?.user) {
         setUser(data.user);
       } else {
-        // No session yet — auto-login (bypass Google login screen).
+        // Auto-login bypass — create session automatically
         try {
-          const loginRes = await fetch("/api/auth/login", {
+          await fetch("/api/auth/login", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(AUTO_USER),
           });
-          const loginData = await loginRes.json();
-          if (loginData?.user) {
-            setUser(loginData.user);
-          } else {
-            setUser(AUTO_USER);
-          }
-        } catch {
-          setUser(AUTO_USER);
-        }
+        } catch {}
+        setUser(AUTO_USER);
       }
     } catch {
       setUser(AUTO_USER);
@@ -82,22 +73,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
-    } catch {
-      /* ignore */
-    }
-    // Even after logout, immediately re-create the session so the user
-    // stays logged in (bypass mode).
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(AUTO_USER),
-      });
-      const data = await res.json();
-      setUser(data?.user || AUTO_USER);
-    } catch {
-      setUser(AUTO_USER);
-    }
+    } catch {}
+    // Re-login immediately (bypass)
+    setUser(AUTO_USER);
   };
 
   return (

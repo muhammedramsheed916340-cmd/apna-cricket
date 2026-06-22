@@ -925,3 +925,36 @@ Stage Summary:
 - User flow: Sign in with Google → get user_token → transfer with Bearer → SUCCESS
 - The "Something Went Wrong!" error was because Bearer was missing, NOT because of
   payload format or player IDs
+
+---
+Task ID: 23
+Agent: main
+Task: Revert breaking changes + bypass Google OAuth
+
+Work Log:
+- User's screenshots at 031430/031552 showed 10/10 SUCCESS before my recent changes
+- My recent "fixes" BROKE what was working:
+  1. Removed 'type: new/edit' from payload -> RESTORED
+  2. Removed 'mobileNumber' from payload -> RESTORED
+  3. Removed 'team_id' for edit -> RESTORED
+  4. Changed String() conversions -> RESTORED
+  5. Made Bearer required -> Made OPTIONAL again
+  6. Forced Google OAuth login -> RESTORED auto-bypass
+- Transfer payload now matches what WORKED (10/10 success):
+  - type: "new" or "edit" (was removed, broke it)
+  - mobileNumber (was removed)
+  - team_id for edit (was removed)
+  - String() for my11circle fields (was removed)
+  - Bearer optional (was made required, broke bypass mode)
+- Auto-login bypass restored:
+  - AuthProvider auto-creates session (no Google OAuth needed)
+  - Login page auto-redirects (no Google sign-in screen)
+  - user_token from localStorage sent IF available (optional)
+- Lint passes cleanly (0 errors)
+
+Stage Summary:
+- REVERTED all breaking changes — restored what gave 10/10 success
+- Google OAuth BYPASSED — auto-login, no sign-in needed
+- Bearer token OPTIONAL — sent if available, works without
+- Transfer payload restored to working format (with type, mobileNumber, team_id, String())
+- With valid OTP-linked account, transfers should work again (10/10 like before)

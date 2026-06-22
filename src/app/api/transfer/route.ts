@@ -166,8 +166,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // The backend requires Authorization: Bearer <jwt> for add-team/edit-team.
-    // The JWT comes from Google OAuth (user_token in localStorage).
+    // Bearer token is OPTIONAL — transfers work with just authToken (from OTP).
+    // If userToken (Google JWT) is available, send it as Bearer for extra auth.
+    // If not available, transfer still works (bypass mode) with valid authToken.
     const bearerToken = userToken || "";
 
     const maxTeams = PLATFORM_LIMITS[fantasyApp] || 40;
@@ -309,8 +310,7 @@ export async function POST(req: Request) {
       // Debug: log the platform-specific IDs being sent
       console.log(`[Transfer][${fantasyApp}] Team ${team.team_number}: players=${JSON.stringify(playerIds)}, captain=${captainId}, vice_captain=${viceCaptainId}, isEdit=${isEdit}, existingTeamId=${existingTeamId || "N/A"}, hasChallenge=${!!account.my11circleChallenge}, hasUserId=${!!account.my11circleUserId}`);
 
-      // Send token AS-IS (matching original teamgeneration.in EXACTLY)
-      // Do NOT extract accessToken — backend expects the full token
+      // Send token AS-IS — backend expects the full raw token
       const payload: Record<string, unknown> = {
         matchId,
         captain: captainId,
@@ -319,16 +319,19 @@ export async function POST(req: Request) {
         fantasyApp,
         authToken,
         sportIndex: 0,
+        type: isEdit ? "edit" : "new",
       };
       if (isEdit && existingTeamId !== undefined) {
         payload.id = existingTeamId;
+        payload.team_id = existingTeamId;
       }
-      // My11Circle-specific fields (matching real source - no String conversion)
+      // My11Circle-specific fields
       if (fantasyApp === "my11circle") {
-        if (account.my11circleChallenge) payload.my11circleChallenge = account.my11circleChallenge;
-        if (account.my11circleUserId) payload.my11circleUserId = account.my11circleUserId;
-        if (account.mobileNumber) payload.my11circleMobile = account.mobileNumber;
+        if (account.my11circleChallenge) payload.my11circleChallenge = String(account.my11circleChallenge);
+        if (account.my11circleUserId) payload.my11circleUserId = String(account.my11circleUserId);
+        if (account.mobileNumber) payload.my11circleMobile = String(account.mobileNumber);
       }
+      if (account.mobileNumber) payload.mobileNumber = account.mobileNumber;
 
       const endpointChain = isEdit ? config.edit : config.add;
       let teamTransferred = false;
