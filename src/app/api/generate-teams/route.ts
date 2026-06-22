@@ -1,7 +1,30 @@
 import { NextResponse } from "next/server";
 import { getMatchPlayers, type Player } from "@/lib/players";
+import { fetchMatchDetail } from "@/lib/tg-api";
 
 export const dynamic = "force-dynamic";
+
+// Fetch real players (with real fantasy IDs) from the original backend
+async function getRealPlayers(matchId: string): Promise<Player[]> {
+  try {
+    const detail = await fetchMatchDetail(matchId);
+    if (!detail || detail.players.length === 0) {
+      // Fall back to hardcoded data for known matches
+      return getMatchPlayers(matchId);
+    }
+    return detail.players.map((p, i) => ({
+      id: `${p.name}-${i}`,
+      name: p.name,
+      role: p.role as 0 | 1 | 2 | 3,
+      team: p.team === detail.team1Name ? "left" : "right",
+      credits: p.credits,
+      selBy: p.selectedBy,
+      fantasyId: p.fantasyId,
+    }));
+  } catch {
+    return getMatchPlayers(matchId);
+  }
+}
 
 interface GenRequest {
   matchId: string;
@@ -49,7 +72,7 @@ function pickByRole(players: Player[], role: number, count: number, teamBias: "l
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as GenRequest;
-    const all = getMatchPlayers(body.matchId);
+    const all = await getRealPlayers(body.matchId);
     if (!all.length) {
       return NextResponse.json(
         { status: "error", message: "No players found for match" },

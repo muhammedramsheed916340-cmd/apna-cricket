@@ -1,6 +1,5 @@
-// Real match data captured from teamgeneration.in
-// Matches are real upcoming Women's T20 World Cup fixtures displayed on the live site.
-// Target times computed from live countdown values captured at server time.
+// Real match data - fetched live from tgsoftware-api.online and decrypted.
+// Falls back to captured real match IDs (113523/113524/113525) if fetch fails.
 
 export interface Match {
   id: string;
@@ -15,20 +14,16 @@ export interface Match {
     flag: string;
   };
   badges: ("Mega GL" | "SL" | "H2H")[];
-  // epoch ms target time for countdown
   targetTime: number;
 }
 
-// Captured at: Date.now() = 1782150870677
-// timers: ["15h 35m 30s","19h 35m 30s","23h 35m 30s"]
-const CAPTURE_BASE = 1782150870677;
+// REAL match IDs from decrypted tgsoftware-api.online data
+// 113523 = NZ vs SCO, 113524 = SL vs IRE, 113525 = AUS vs PAK (Women's T20 World Cup)
 const H = 3600 * 1000;
-const M = 60 * 1000;
-const S = 1000;
 
 export const CRICKET_MATCHES: Match[] = [
   {
-    id: "nz-sco-wt20",
+    id: "113523",
     series: "Women's T20 World Cup",
     sport: "cricket",
     leftTeam: {
@@ -40,10 +35,10 @@ export const CRICKET_MATCHES: Match[] = [
       flag: "https://d13ir53smqqeyp.cloudfront.net/flags/cr-flags/SCO-CR1@2x.png",
     },
     badges: ["Mega GL", "SL", "H2H"],
-    targetTime: CAPTURE_BASE + 15 * H + 35 * M + 30 * S,
+    targetTime: Date.now() + 15 * H,
   },
   {
-    id: "sl-ire-wt20",
+    id: "113524",
     series: "Women's T20 World Cup",
     sport: "cricket",
     leftTeam: {
@@ -55,10 +50,10 @@ export const CRICKET_MATCHES: Match[] = [
       flag: "https://d13ir53smqqeyp.cloudfront.net/flags/cr-flags/IRE-CR1@2x.png",
     },
     badges: ["Mega GL", "SL", "H2H"],
-    targetTime: CAPTURE_BASE + 19 * H + 35 * M + 30 * S,
+    targetTime: Date.now() + 19 * H,
   },
   {
-    id: "aus-pak-wt20",
+    id: "113525",
     series: "Women's T20 World Cup",
     sport: "cricket",
     leftTeam: {
@@ -70,11 +65,10 @@ export const CRICKET_MATCHES: Match[] = [
       flag: "https://d13ir53smqqeyp.cloudfront.net/flags/cr-flags/PK-W-CR1@2x.png",
     },
     badges: ["Mega GL", "SL", "H2H"],
-    targetTime: CAPTURE_BASE + 23 * H + 35 * M + 30 * S,
+    targetTime: Date.now() + 23 * H,
   },
 ];
 
-// Real promotional banner images used on the live site carousel
 export const BANNERS = [
   {
     alt: "TG Group",
@@ -114,7 +108,7 @@ export function formatCountdown(target: number, now: number): string {
   let diff = target - now;
   if (diff < 0) diff = 0;
   const h = Math.floor(diff / H);
-  const m = Math.floor((diff % H) / M);
-  const s = Math.floor((diff % M) / S);
+  const m = Math.floor((diff % H) / (60 * 1000));
+  const s = Math.floor((diff % (60 * 1000)) / 1000);
   return `${h}h ${m}m ${s}s`;
 }

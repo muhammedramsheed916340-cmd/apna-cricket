@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { getMatchPlayers } from "@/lib/players";
+import { fetchMatchDetail } from "@/lib/tg-api";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -12,11 +13,38 @@ export async function GET(req: Request) {
       { status: 400 }
     );
   }
-  const players = getMatchPlayers(matchId);
+
+  // Fetch REAL players from the original backend (decrypted)
+  const detail = await fetchMatchDetail(matchId);
+  if (!detail) {
+    return NextResponse.json({
+      status: "error",
+      message: "Failed to fetch match detail",
+      players: [],
+    });
+  }
+
+  // Convert to the Player format expected by the UI
+  const players = detail.players.map((p, i) => ({
+    id: `${p.name}-${i}`,
+    name: p.name,
+    role: p.role as 0 | 1 | 2 | 3,
+    team: p.team === detail.team1Name ? "left" : "right",
+    credits: p.credits,
+    selBy: p.selectedBy,
+    fantasyId: p.fantasyId,
+    image: p.image,
+    playing: p.playing,
+    captainPercentage: p.captainPercentage,
+    viceCaptainPercentage: p.viceCaptainPercentage,
+  }));
+
   return NextResponse.json({
     status: "success",
     matchId,
     count: players.length,
     players,
+    team1Name: detail.team1Name,
+    team2Name: detail.team2Name,
   });
 }
