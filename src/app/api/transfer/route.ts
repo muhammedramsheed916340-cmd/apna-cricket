@@ -159,6 +159,23 @@ export async function POST(req: Request) {
       );
     }
 
+    // Fetch stored generated teams for this match so we can send REAL team data
+    // (players, captain, vice-captain) to the fantasy platform backend.
+    const storedRaw = store.get(`tg_teams_${matchId}`)?.value;
+    let storedTeams: any[] = [];
+    if (storedRaw) {
+      try {
+        const parsed = JSON.parse(Buffer.from(storedRaw, "base64").toString("utf-8"));
+        storedTeams = parsed.teams || [];
+      } catch {
+        /* ignore */
+      }
+    }
+    // Merge: prefer passed-in teams, fall back to stored teams
+    const allTeamsMap = new Map<number, any>();
+    for (const t of storedTeams) allTeamsMap.set(t.team_number, t);
+    for (const t of teams) allTeamsMap.set(t.team_number, t);
+
     // Call the real transfer endpoint for each team.
     // The real backend (tgsoftware-api.online) proxies the team to the actual
     // fantasy platform (Dream11/My11Circle/Jumbo) using the authToken.
@@ -167,15 +184,28 @@ export async function POST(req: Request) {
     const failed: { team_number: number; error: string }[] = [];
 
     for (const teamNum of teamList) {
-      const teamData = teams.find((t) => t.team_number === teamNum);
+      const teamData = allTeamsMap.get(teamNum);
+      const playerData = teamData?.players || [];
+      const captain = teamData?.captain;
+      const vicecaptain = teamData?.vicecaptain;
+
+      // If no generated team data exists for this number, fail with clear message
+      if (!teamData) {
+        failed.push({
+          team_number: teamNum,
+          error: "No generated team for this number. Generate teams first.",
+        });
+        continue;
+      }
+
       const payload = {
         fantasyApp,
         authToken,
         matchId,
         tgMatchId: matchId,
-        playerData: teamData?.players || [],
-        captainData: teamData?.captain ? [teamData.captain] : [],
-        vicecaptainData: teamData?.vicecaptain ? [teamData.vicecaptain] : [],
+        playerData,
+        captainData: captain ? [captain] : [],
+        vicecaptainData: vicecaptain ? [vicecaptain] : [],
         generateLinkFlag: action === "join-contests" ? "contest" : "general",
         teamNumber: teamNum,
       };

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Sparkles, RefreshCw, ChevronRight, SlidersHorizontal } from "lucide-react";
 import { MatchShell } from "@/components/tg/match-shell";
 import { ROLE_LABELS } from "@/lib/players";
+import { storeTeams } from "@/lib/teams-storage";
 
 const ADVANCED_FILTERS = [
   { id: "form", label: "In-Form Players", desc: "High recent selection %" },
@@ -45,7 +46,10 @@ export default function AdvancedPage({ params }: { params: Promise<{ id: string 
         }),
       });
       const data = await res.json();
-      if (data?.teams) setTeams(data.teams);
+      if (data?.teams) {
+        setTeams(data.teams);
+        storeTeams(matchId, "advanced", data.teams);
+      }
     } finally {
       setLoading(false);
     }

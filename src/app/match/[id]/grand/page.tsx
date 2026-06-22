@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Trophy, RefreshCw, ChevronRight } from "lucide-react";
 import { MatchShell } from "@/components/tg/match-shell";
 import { ROLE_LABELS } from "@/lib/players";
+import { storeTeams } from "@/lib/teams-storage";
 
 const COMBINATIONS = [
   { label: "1-4-3-3", wk: 1, bat: 4, ar: 3, bowl: 3 },
@@ -61,7 +62,10 @@ export default function GrandPage({ params }: { params: Promise<{ id: string }> 
         }),
       });
       const data = await res.json();
-      if (data?.teams) setTeams(data.teams);
+      if (data?.teams) {
+        setTeams(data.teams);
+        storeTeams(matchId, "grand", data.teams);
+      }
     } finally {
       setLoading(false);
     }

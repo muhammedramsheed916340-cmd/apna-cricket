@@ -18,6 +18,7 @@ import {
 import { MatchShell } from "@/components/tg/match-shell";
 import { useToast } from "@/hooks/use-toast";
 import { FANTASY_PLATFORMS } from "@/lib/fantasy";
+import { getTeams } from "@/lib/teams-storage";
 
 const PLATFORM_STYLE: Record<
   string,
@@ -72,6 +73,18 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
       .finally(() => setLoadingAccounts(false));
   }, [selectedPlatform]);
 
+  // Load stored generated teams from localStorage so we know how many are transferable
+  useEffect(() => {
+    if (!matchId) return;
+    const stored = getTeams(matchId);
+    const count = stored?.teams.length || 0;
+    setTotalTeams(count);
+    if (count > 0) {
+      setFromIdx(0);
+      setToIdx(Math.min(count - 1, batchCount - 1));
+    }
+  }, [matchId, batchCount]);
+
   const linkedAccounts = accounts.filter((a) => a.linked);
   const currentAccount = linkedAccounts.find((a) => a.slug === selectedPlatform);
   const currentPlatform = FANTASY_PLATFORMS.find((p) => p.slug === selectedPlatform)!;
@@ -110,6 +123,9 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
     setTransferred([]);
     setFailedTeams([]);
     try {
+      // Send the real generated team data from localStorage
+      const stored = getTeams(matchId);
+      const storedTeams = stored?.teams || [];
       const res = await fetch("/api/transfer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -118,6 +134,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
           fantasyApp: selectedPlatform,
           action: "all",
           batchCount,
+          teams: storedTeams.slice(0, batchCount),
         }),
       });
       const data = await res.json();
@@ -178,6 +195,8 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
     setBulkTransferring(true);
     setBulkResult(null);
     try {
+      const stored = getTeams(matchId);
+      const storedTeams = stored?.teams || [];
       const res = await fetch("/api/transfer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -187,6 +206,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
           action: "bulk",
           fromIdx,
           toIdx,
+          teams: storedTeams,
         }),
       });
       const data = await res.json();
@@ -220,6 +240,8 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
     setTransferred([]);
     setFailedTeams([]);
     try {
+      const stored = getTeams(matchId);
+      const storedTeams = stored?.teams || [];
       const res = await fetch("/api/transfer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -228,6 +250,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
           fantasyApp: selectedPlatform,
           action: "join-contests",
           batchCount,
+          teams: storedTeams.slice(0, batchCount),
         }),
       });
       const data = await res.json();
@@ -395,6 +418,46 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
           </div>
         )}
 
+        {/* No generated teams warning */}
+        {totalTeams === 0 && !loadingAccounts && (
+          <div
+            style={{
+              background: "#fff3cd",
+              border: "1px solid #ffc107",
+              borderRadius: 8,
+              padding: 12,
+              marginBottom: 12,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <AlertCircle size={18} color="#856404" />
+            <div style={{ flex: 1, fontSize: 12, color: "#856404" }}>
+              <strong>No generated teams.</strong> Generate teams first (Smart /
+              Grand / Advanced) to enable transfer.
+            </div>
+            <button
+              onClick={() => router.push(`/match/${matchId}/smart`)}
+              className="btn-tg-primary"
+              style={{
+                padding: "6px 10px",
+                border: "none",
+                borderRadius: 4,
+                color: "#fff",
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              <Zap size={12} /> Generate
+            </button>
+          </div>
+        )}
+
         {/* Account info */}
         {currentAccount && (
           <div
@@ -515,7 +578,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <button
             onClick={transferAll}
-            disabled={transferring || !currentAccount}
+            disabled={transferring || !currentAccount || totalTeams === 0}
             className="btn-tg-success"
             style={{
               flex: 1,
@@ -528,8 +591,8 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
               alignItems: "center",
               justifyContent: "center",
               gap: 6,
-              cursor: transferring || !currentAccount ? "wait" : "pointer",
-              opacity: transferring || !currentAccount ? 0.6 : 1,
+              cursor: transferring || !currentAccount || totalTeams === 0 ? "not-allowed" : "pointer",
+              opacity: transferring || !currentAccount || totalTeams === 0 ? 0.6 : 1,
             }}
           >
             {transferring ? (
@@ -541,7 +604,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
           </button>
           <button
             onClick={joinAllContests}
-            disabled={transferring || !currentAccount}
+            disabled={transferring || !currentAccount || totalTeams === 0}
             style={{
               flex: 1,
               padding: "12px",
@@ -555,8 +618,8 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
               alignItems: "center",
               justifyContent: "center",
               gap: 6,
-              cursor: transferring || !currentAccount ? "wait" : "pointer",
-              opacity: transferring || !currentAccount ? 0.6 : 1,
+              cursor: transferring || !currentAccount || totalTeams === 0 ? "not-allowed" : "pointer",
+              opacity: transferring || !currentAccount || totalTeams === 0 ? 0.6 : 1,
             }}
           >
             <Trophy size={14} />
@@ -701,7 +764,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
 
         <button
           onClick={startBulkTransfer}
-          disabled={bulkTransferring || !currentAccount}
+          disabled={bulkTransferring || !currentAccount || totalTeams === 0}
           className="btn-tg-primary"
           style={{
             width: "100%",
@@ -715,8 +778,8 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
             alignItems: "center",
             justifyContent: "center",
             gap: 8,
-            cursor: bulkTransferring || !currentAccount ? "wait" : "pointer",
-            opacity: bulkTransferring || !currentAccount ? 0.6 : 1,
+            cursor: bulkTransferring || !currentAccount || totalTeams === 0 ? "not-allowed" : "pointer",
+            opacity: bulkTransferring || !currentAccount || totalTeams === 0 ? 0.6 : 1,
           }}
         >
           {bulkTransferring ? (
