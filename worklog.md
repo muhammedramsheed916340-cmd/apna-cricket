@@ -323,3 +323,64 @@ Stage Summary:
 - Transfer API sends real payload: {playerData, captainData, vicecaptainData, generateLinkFlag} per team
 - Real backend validates auth token + team data (rejects fake tokens with TOKEN_EXPIRED)
 - With a valid OTP-linked account, transfer would succeed to Dream11/My11Circle/Jumbo
+
+---
+Task ID: 9
+Agent: main
+Task: Fix combination selection (only 1-4-3-3 working) + My11Circle/Jumbo transfer endpoints
+
+Work Log:
+- Extracted original teamgeneration.in source from uploaded 7z archive (73MB, split into 7 parts)
+- Found real source code at /tmp/extracted/src/
+- Analyzed real transfer endpoint config (src/app/api/fantasy/transfer/route.ts):
+  - ALL platforms use /api/fantasy/add-team as PRIMARY endpoint
+  - Dream11 has /api/classic/dream11/addteam as FALLBACK only
+  - My11Circle and Jumbo use ONLY /api/fantasy/add-team (NOT the dream11 endpoint)
+- BUG 1 (My11Circle/Jumbo): My transfer API used /api/classic/dream11/addteam for ALL platforms
+  - FIX: Created PLATFORM_ENDPOINTS with per-platform endpoint arrays:
+    - dream11: ["/api/fantasy/add-team", "/api/classic/dream11/addteam"] (primary + fallback)
+    - my11circle: ["/api/fantasy/add-team"] (correct - no dream11 endpoint)
+    - jumbo: ["/api/fantasy/add-team"] (correct - no dream11 endpoint)
+  - Transfer loop now tries each endpoint in order (primary first, fallback second)
+  - If token-expiry error, stops trying fallbacks (don't waste time)
+- Analyzed real combination logic (src/app/page.tsx + src/app/api/generate-teams/route.ts):
+  - Original has 3 generation modes: "standard", "combination", "gl"
+  - "combination" mode: user selects players from pool, generates teams with varied C/VC
+  - Role requirements use RANGES: WK [1,2], BAT [3,5], AR [2,4], BOWL [3,5] (not fixed)
+  - Combinations like "1-4-3-3" are display labels, not the actual mechanism
+- BUG 2 (Combination selection): My /match/[id]/combination page selected combinations but
+  only navigated to /smart without passing them. Only default 1-4-3-3 was ever used.
+  - FIX: Added combination storage (storeCombinations/getCombinations) to teams-storage.ts
+  - Combination page now stores selected combinations in localStorage on Continue
+  - Combination page now navigates to /grand (which uses combinations for generation)
+  - Grand page loads stored combinations on mount, shows "N combinations selected" banner
+  - Grand page generate() now iterates across ALL selected combinations:
+    - Divides teamCount across combinations (teamsPerComb = teamCount / numCombs)
+    - Generates teams for each combination
+    - Renumbers teams across combinations (no duplicate team numbers)
+    - Stores all teams for transfer
+- Browser-verified combination fix:
+  - Opened /match/nz-sco-wt20/combination
+  - Selected 3 combinations (1-3-3-4, 1-4-2-4, 1-3-4-3) + default 1-4-3-3 = 4 total
+  - Clicked Continue -> navigated to /match/nz-sco-wt20/grand
+  - Grand page showed "4 combinations selected from the Combination page"
+  - Clicked Generate Grand League Teams -> 8 teams generated
+  - Verified 4 UNIQUE combinations in output: 1-4-3-3, 1-3-3-4, 1-4-2-4, 1-3-4-3
+  - (was only 1-4-3-3 before the fix)
+- Browser-verified transfer endpoint fix:
+  - My11Circle transfer: uses /api/fantasy/add-team (correct, not dream11 endpoint)
+  - Jumbo transfer: uses /api/fantasy/add-team (correct, not dream11 endpoint)
+  - Dream11 transfer: tries /api/fantasy/add-team first, falls back to /api/classic/dream11/addteam
+  - All return TOKEN_EXPIRED for fake tokens (real backend validation working)
+- Lint passes cleanly (0 errors)
+
+Stage Summary:
+- Combination selection now WORKS for ALL combinations (1-4-3-3, 1-3-3-4, 1-4-2-4, 1-3-4-3, etc.)
+  - Select multiple on Combination page -> stored in localStorage
+  - Grand page generates teams across ALL selected combinations (not just 1-4-3-3)
+  - Verified: 4 unique combinations generated in single batch
+- My11Circle and Jumbo transfer now use CORRECT endpoints:
+  - All platforms: /api/fantasy/add-team (universal endpoint)
+  - Dream11 only: also tries /api/classic/dream11/addteam as fallback
+  - My11Circle/Jumbo: NO longer use the Dream11-specific endpoint
+- Transfer tries each endpoint in order, stops on token-expiry, falls back on other errors

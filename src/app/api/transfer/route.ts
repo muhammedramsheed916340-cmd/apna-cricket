@@ -11,12 +11,20 @@ const PLATFORM_LIMITS: Record<string, number> = {
   jumbo: 50,
 };
 
-// Real fantasy platform transfer endpoint per app slug
-const TRANSFER_ENDPOINT: Record<string, string> = {
-  dream11: "/api/classic/dream11/addteam",
-  my11circle: "/api/classic/dream11/addteam", // shares the classic addteam flow
-  jumbo: "/api/classic/dream11/addteam",
+// Real fantasy platform transfer endpoints per app slug.
+// Matches the ORIGINAL teamgeneration.in source:
+//   - ALL platforms use /api/fantasy/add-team as the primary endpoint
+//   - Dream11 also has /api/classic/dream11/addteam as a fallback
+//   - My11Circle and Jumbo use ONLY /api/fantasy/add-team (NOT the dream11 endpoint)
+const PLATFORM_ENDPOINTS: Record<string, string[]> = {
+  dream11: ["/api/fantasy/add-team", "/api/classic/dream11/addteam"],
+  my11circle: ["/api/fantasy/add-team"],
+  jumbo: ["/api/fantasy/add-team"],
+  vision11: ["/api/fantasy/add-team"],
+  myteam11: ["/api/fantasy/add-team"],
 };
+
+const DEFAULT_ENDPOINTS = ["/api/fantasy/add-team"];
 
 interface TransferReq {
   matchId?: string;
@@ -177,9 +185,8 @@ export async function POST(req: Request) {
     for (const t of teams) allTeamsMap.set(t.team_number, t);
 
     // Call the real transfer endpoint for each team.
-    // The real backend (tgsoftware-api.online) proxies the team to the actual
-    // fantasy platform (Dream11/My11Circle/Jumbo) using the authToken.
-    const endpoint = TRANSFER_ENDPOINT[fantasyApp] || TRANSFER_ENDPOINT.dream11;
+    // Tries each platform-specific endpoint in order (primary first, fallback second).
+    const endpoints = PLATFORM_ENDPOINTS[fantasyApp] || DEFAULT_ENDPOINTS;
     const transferred: { team_number: number; status: string; contestId?: string }[] = [];
     const failed: { team_number: number; error: string }[] = [];
 
@@ -210,40 +217,54 @@ export async function POST(req: Request) {
         teamNumber: teamNum,
       };
 
-      try {
-        const upRes = await fetch(`${BACKEND}${endpoint}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Origin: "https://teamgeneration.in",
-            Referer: "https://teamgeneration.in/",
-          },
-          body: JSON.stringify(payload),
-          cache: "no-store",
-        });
-        const upData = await upRes.json().catch(() => ({}));
+      let teamTransferred = false;
+      let lastError = "Transfer failed";
 
-        if (upRes.status === 200 && upData?.status === "success") {
-          transferred.push({
-            team_number: teamNum,
-            status: "transferred",
-            contestId:
-              action === "join-contests"
-                ? `c${Math.floor(100000 + Math.random() * 900000)}`
-                : undefined,
+      // Try each endpoint for this platform (primary, then fallback)
+      for (const endpoint of endpoints) {
+        try {
+          const upRes = await fetch(`${BACKEND}${endpoint}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Origin: "https://teamgeneration.in",
+              Referer: "https://teamgeneration.in/",
+            },
+            body: JSON.stringify(payload),
+            cache: "no-store",
           });
-        } else {
-          // Real backend rejected this team — record the error
-          failed.push({
-            team_number: teamNum,
-            error: upData?.message || "Transfer failed",
-          });
+          const upData = await upRes.json().catch(() => ({}));
+
+          if (upRes.status === 200 && upData?.status === "success") {
+            transferred.push({
+              team_number: teamNum,
+              status: "transferred",
+              contestId:
+                action === "join-contests"
+                  ? `c${Math.floor(100000 + Math.random() * 900000)}`
+                  : undefined,
+            });
+            teamTransferred = true;
+            break; // success, don't try fallback
+          } else {
+            lastError = upData?.message || "Transfer failed";
+            // If this endpoint returned a token-expiry error, don't try fallback
+            if (
+              typeof lastError === "string" &&
+              /invalid token|token expired|session expired|auth token/i.test(lastError)
+            ) {
+              break;
+            }
+            // Otherwise try the next endpoint (fallback)
+          }
+        } catch (e) {
+          lastError = (e as Error).message;
+          // try next endpoint
         }
-      } catch (e) {
-        failed.push({
-          team_number: teamNum,
-          error: (e as Error).message,
-        });
+      }
+
+      if (!teamTransferred) {
+        failed.push({ team_number: teamNum, error: lastError });
       }
     }
 

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Trophy, RefreshCw, ChevronRight } from "lucide-react";
 import { MatchShell } from "@/components/tg/match-shell";
 import { ROLE_LABELS } from "@/lib/players";
-import { storeTeams } from "@/lib/teams-storage";
+import { storeTeams, getCombinations } from "@/lib/teams-storage";
 
 const COMBINATIONS = [
   { label: "1-4-3-3", wk: 1, bat: 4, ar: 3, bowl: 3 },
@@ -34,6 +34,7 @@ export default function GrandPage({ params }: { params: Promise<{ id: string }> 
   const router = useRouter();
   const [matchId, setMatchId] = useState("");
   const [selectedComb, setSelectedComb] = useState(COMBINATIONS[0]);
+  const [storedCombs, setStoredCombs] = useState<typeof COMBINATIONS>([]);
   const [teamCount, setTeamCount] = useState(10);
   const [loading, setLoading] = useState(false);
   const [teams, setTeams] = useState<GenTeam[]>([]);
@@ -42,29 +43,57 @@ export default function GrandPage({ params }: { params: Promise<{ id: string }> 
     params.then((p) => setMatchId(p.id));
   }, [params]);
 
+  // Load combinations selected on the Combination page
+  useEffect(() => {
+    if (!matchId) return;
+    const combs = getCombinations(matchId);
+    if (combs.length > 0) {
+      setStoredCombs(combs);
+      setSelectedComb(combs[0]);
+    }
+  }, [matchId]);
+
   const generate = async () => {
     setLoading(true);
     setTeams([]);
     try {
-      const res = await fetch("/api/generate-teams", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          matchId,
-          type: "grand",
-          teamCount,
-          combination: {
-            wk: selectedComb.wk,
-            bat: selectedComb.bat,
-            ar: selectedComb.ar,
-            bowl: selectedComb.bowl,
-          },
-        }),
-      });
-      const data = await res.json();
-      if (data?.teams) {
-        setTeams(data.teams);
-        storeTeams(matchId, "grand", data.teams);
+      // If combinations were selected on the Combination page, generate across ALL of them
+      const combsToUse = storedCombs.length > 0 ? storedCombs : [selectedComb];
+      const teamsPerComb = Math.max(1, Math.floor(teamCount / combsToUse.length));
+      const allTeams: GenTeam[] = [];
+      let teamOffset = 0;
+
+      for (const comb of combsToUse) {
+        const res = await fetch("/api/generate-teams", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            matchId,
+            type: "grand",
+            teamCount: teamsPerComb,
+            combination: {
+              wk: comb.wk,
+              bat: comb.bat,
+              ar: comb.ar,
+              bowl: comb.bowl,
+            },
+          }),
+        });
+        const data = await res.json();
+        if (data?.teams) {
+          // Renumber teams across combinations
+          const renumbered = data.teams.map((t: GenTeam) => ({
+            ...t,
+            team_number: t.team_number + teamOffset,
+          }));
+          allTeams.push(...renumbered);
+          teamOffset += data.teams.length;
+        }
+      }
+
+      if (allTeams.length > 0) {
+        setTeams(allTeams);
+        storeTeams(matchId, "grand", allTeams);
       }
     } finally {
       setLoading(false);
@@ -102,22 +131,45 @@ export default function GrandPage({ params }: { params: Promise<{ id: string }> 
         <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
           Combination (WK-BAT-AR-BOWL)
         </div>
+        {storedCombs.length > 0 && (
+          <div
+            style={{
+              background: "#e3f2fd",
+              border: "1px solid #563d7c",
+              borderRadius: 6,
+              padding: 8,
+              marginBottom: 8,
+              fontSize: 11,
+              color: "#0d47a1",
+            }}
+          >
+            <strong>{storedCombs.length} combinations selected</strong> from the
+            Combination page: {storedCombs.map((c) => c.label).join(", ")}.
+            Generate will create teams across ALL of them.
+          </div>
+        )}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 12 }}>
           {COMBINATIONS.map((c) => {
             const active = selectedComb.label === c.label;
+            const isStored = storedCombs.some((sc) => sc.label === c.label);
             return (
               <button
                 key={c.label}
-                onClick={() => setSelectedComb(c)}
+                onClick={() => {
+                  setSelectedComb(c);
+                  // If user manually selects, clear stored combinations
+                  setStoredCombs([]);
+                }}
                 style={{
                   padding: "8px 4px",
                   border: active ? "1px solid #563d7c" : "1px solid #ddd",
-                  background: active ? "#563d7c" : "#fff",
+                  background: active ? "#563d7c" : isStored ? "#f5f0fa" : "#fff",
                   color: active ? "#fff" : "#6c757d",
                   borderRadius: 6,
                   fontSize: 11,
                   fontWeight: 600,
                   cursor: "pointer",
+                  position: "relative",
                 }}
               >
                 {c.label}

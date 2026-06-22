@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Layers, ChevronRight, Check } from "lucide-react";
 import { MatchShell } from "@/components/tg/match-shell";
+import { storeCombinations } from "@/lib/teams-storage";
 
 const COMBINATIONS = [
   { label: "1-4-3-3", wk: 1, bat: 4, ar: 3, bowl: 3 },
@@ -163,7 +164,12 @@ export default function CombinationPage({ params }: { params: Promise<{ id: stri
           Reset
         </button>
         <button
-          onClick={() => router.push(`/match/${matchId}/smart`)}
+          onClick={() => {
+            // Store selected combinations for the Grand page to use
+            const selectedCombs = COMBINATIONS.filter((c) => selected.includes(c.label));
+            storeCombinations(matchId, selectedCombs);
+            router.push(`/match/${matchId}/grand`);
+          }}
           className="btn-tg-primary"
           style={{
             flex: 2,

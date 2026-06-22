@@ -5,6 +5,7 @@
 // available to the transfer step without cookie round-trips.
 
 const KEY = "tg_match_teams";
+const COMB_KEY = "tg_selected_combinations";
 
 interface StoredTeams {
   matchId: string;
@@ -52,6 +53,46 @@ export function clearTeams(matchId: string): void {
 function getAllTeams(): Record<string, StoredTeams> {
   try {
     return JSON.parse(localStorage.getItem(KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+// ===== Combination storage =====
+// Stores selected combinations per match so the generation pages can use them.
+
+export interface Combination {
+  label: string;
+  wk: number;
+  bat: number;
+  ar: number;
+  bowl: number;
+}
+
+export function storeCombinations(matchId: string, combinations: Combination[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    const all = getAllCombinations();
+    all[matchId] = combinations;
+    localStorage.setItem(COMB_KEY, JSON.stringify(all));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getCombinations(matchId: string): Combination[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const all = getAllCombinations();
+    return all[matchId] || [];
+  } catch {
+    return [];
+  }
+}
+
+function getAllCombinations(): Record<string, Combination[]> {
+  try {
+    return JSON.parse(localStorage.getItem(COMB_KEY) || "{}");
   } catch {
     return {};
   }
