@@ -1,14 +1,57 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import CryptoJS from "crypto-js";
 
 export const dynamic = "force-dynamic";
 
 const BACKEND = "https://tgsoftware-api.online";
+const AES_KEY = "coder_bobby_believer01_tg_software";
 const SUPPORTED = ["dream11", "my11circle", "jumbo", "myteam11", "vision11", "myfab11"];
 
-// Verify the REAL OTP entered by the user (delivered via SMS) against the
-// original tgsoftware-api.online backend. On success, stores the real
-// authToken issued by the fantasy platform.
+function decryptAES(encrypted: string): string {
+  try {
+    return CryptoJS.AES.decrypt(encrypted, AES_KEY).toString(CryptoJS.enc.Utf8);
+  } catch {
+    return "";
+  }
+}
+
+// Extract the actual auth token from the backend response
+function extractRealToken(rawToken: string): string {
+  if (!rawToken || rawToken.length < 5) return rawToken;
+  if (rawToken.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(rawToken);
+      if (typeof parsed.accessToken === "string" && parsed.accessToken.length > 5) return parsed.accessToken;
+      if (typeof parsed.access_token === "string" && parsed.access_token.length > 5) return parsed.access_token;
+      if (typeof parsed.token === "string" && parsed.token.length > 5) return parsed.token;
+      if (typeof parsed.authToken === "string" && parsed.authToken.length > 5) return parsed.authToken;
+      return rawToken;
+    } catch {
+      return rawToken;
+    }
+  }
+  return rawToken;
+}
+
+function findTokenDeep(obj: unknown, depth = 0): string | null {
+  if (depth > 5 || !obj || typeof obj !== "object") return null;
+  const record = obj as Record<string, unknown>;
+  for (const key of ["token", "authToken", "access_token", "accessToken"]) {
+    const val = record[key];
+    if (typeof val === "string" && val.length > 5) return val;
+  }
+  for (const val of Object.values(record)) {
+    if (val && typeof val === "object") {
+      const found = findTokenDeep(val, depth + 1);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+// Verify the REAL OTP entered by the user against the original backend.
+// Stores the FULL raw token (matching original APK behavior).
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -20,10 +63,7 @@ export async function POST(req: Request) {
 
     if (!fantasyApp || !mobileNumber || !verificationCode) {
       return NextResponse.json(
-        {
-          status: "error",
-          message: "fantasyApp, mobileNumber and verificationCode are required",
-        },
+        { status: "error", message: "fantasyApp, mobileNumber and verificationCode are required" },
         { status: 400 }
       );
     }
@@ -31,13 +71,6 @@ export async function POST(req: Request) {
     if (!SUPPORTED.includes(fantasyApp)) {
       return NextResponse.json(
         { status: "error", message: "Unsupported fantasy platform" },
-        { status: 400 }
-      );
-    }
-
-    if (!/^\d{4,6}$/.test(String(verificationCode))) {
-      return NextResponse.json(
-        { status: "error", message: "Enter a valid OTP" },
         { status: 400 }
       );
     }
@@ -54,8 +87,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // Build the verify payload exactly like the original app
-    const payload: Record<string, unknown> = {
+    // Build the payload EXACTLY matching the original APK format
+    const payload: Record<string, string | number> = {
       fantasyApp,
       mobileNumber,
       verificationCode,
@@ -75,33 +108,65 @@ export async function POST(req: Request) {
       cache: "no-store",
     });
 
-    const data = await upstream.json().catch(() => ({}));
-
-    if (upstream.status !== 200 || data?.status !== "success") {
-      // Clear the OTP state on failure so a fresh send-otp is required
-      store.delete(`tg_otp_${fantasyApp}`);
-      return NextResponse.json(
-        {
-          status: "error",
-          message: data?.message || "Invalid OTP. Please try again.",
-        },
-        { status: 400 }
-      );
+    const responseText = await upstream.text();
+    let data: Record<string, unknown>;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      return NextResponse.json({
+        status: "fail",
+        error: "Unexpected response from verification server.",
+      });
     }
 
-    const verified = data.data || {};
-    const token = verified.token || "";
+    if (data.status !== "success") {
+      store.delete(`tg_otp_${fantasyApp}`);
+      return NextResponse.json({
+        status: "error",
+        message: (data.message as string) || "Invalid OTP. Please try again.",
+      });
+    }
 
-    // Persist the linked account (real token from the fantasy platform)
+    // Try to decrypt the data field if it's an encrypted string
+    let rd: unknown = data.data || data;
+    if (typeof data.data === "string" && data.data) {
+      const decrypted = decryptAES(data.data);
+      if (decrypted) {
+        try {
+          rd = JSON.parse(decrypted);
+        } catch {
+          rd = { rawDecrypted: decrypted };
+        }
+      }
+    }
+
+    // Extract the auth token - store FULL raw token (matching original APK)
+    const rawToken = findTokenDeep(rd) || findTokenDeep(data);
+
+    if (!rawToken) {
+      return NextResponse.json({
+        status: "error",
+        message: "Verification succeeded but no auth token returned. Please try again.",
+      });
+    }
+
+    const extractedAccessToken = extractRealToken(rawToken);
+    const rdRecord = typeof rd === "object" && rd !== null ? (rd as Record<string, unknown>) : {};
+    const my11circleChallenge = rdRecord.my11circleChallenge || null;
+    const my11circleUserId = rdRecord.my11circleUserId || null;
+
+    // Persist the linked account with the FULL raw token (original APK stores this)
     const account = {
       slug: fantasyApp,
       mobileNumber,
-      authToken: token,
+      authToken: rawToken, // FULL raw token (JSON wrapper preserved)
+      accessToken: extractedAccessToken, // extracted JWT for reference
       linked: true,
       linkedAt: Date.now(),
-      my11circleChallenge: verified.my11circleChallenge || null,
-      my11circleUserId: verified.my11circleUserId || null,
+      my11circleChallenge: my11circleChallenge as string | null,
+      my11circleUserId: my11circleUserId as string | null,
     };
+
     store.set(
       `tg_fantasy_${fantasyApp}`,
       Buffer.from(JSON.stringify(account)).toString("base64"),
@@ -109,17 +174,17 @@ export async function POST(req: Request) {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
-        maxAge: 60 * 60 * 24 * 30, // 30 days
+        maxAge: 60 * 60 * 24 * 30,
       }
     );
-    // Clear the OTP state
     store.delete(`tg_otp_${fantasyApp}`);
 
     return NextResponse.json({
       status: "success",
-      message: data.message || `${fantasyApp} account linked successfully`,
+      message: (data.message as string) || `${fantasyApp} account linked successfully`,
       data: {
-        token,
+        token: rawToken,
+        accessToken: extractedAccessToken,
         account: {
           slug: fantasyApp,
           mobileNumber,

@@ -5,8 +5,6 @@ export const dynamic = "force-dynamic";
 
 const BACKEND = "https://tgsoftware-api.online";
 
-// GET existing teams for a match from the fantasy platform.
-// Matches original teamgeneration.in: POST /api/fantasy/list-of-teams
 const LIST_ENDPOINTS: Record<string, string[]> = {
   dream11: ["/api/fantasy/list-of-teams", "/api/classic/dream11/list-of-teams"],
   my11circle: ["/api/fantasy/list-of-teams", "/api/classic/my11circle/list-of-teams"],
@@ -36,7 +34,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Read the linked account's authToken from cookie
     const store = await cookies();
     const raw = store.get(`tg_fantasy_${fantasyApp}`)?.value;
     if (!raw) {
@@ -45,8 +42,12 @@ export async function POST(req: Request) {
         error: `${fantasyApp} account not linked`,
         code: "NOT_LINKED",
         teams_list: [],
+        presentTeamCount: 0,
+        maxTeams: PLATFORM_LIMITS[fantasyApp] || 40,
+        newSlots: PLATFORM_LIMITS[fantasyApp] || 40,
       });
     }
+
     let account;
     try {
       account = JSON.parse(Buffer.from(raw, "base64").toString("utf-8"));
@@ -58,11 +59,28 @@ export async function POST(req: Request) {
       });
     }
 
-    const payload = {
+    // For Dream11: extract accessToken from JSON wrapper if present
+    let authToken = account.authToken;
+    if (fantasyApp === "dream11" && authToken && authToken.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(authToken);
+        if (typeof parsed.accessToken === "string") authToken = parsed.accessToken;
+        else if (typeof parsed.access_token === "string") authToken = parsed.access_token;
+      } catch { /* use as-is */ }
+    }
+
+    const payload: Record<string, unknown> = {
       fantasyApp,
       matchId: String(matchId),
-      authToken: account.authToken,
+      authToken,
     };
+
+    // My11Circle-specific fields
+    if (fantasyApp === "my11circle") {
+      if (account.my11circleChallenge) payload.my11circleChallenge = account.my11circleChallenge;
+      if (account.my11circleUserId) payload.my11circleUserId = account.my11circleUserId;
+      if (account.mobileNumber) payload.my11circleMobile = account.mobileNumber;
+    }
 
     const endpoints = LIST_ENDPOINTS[fantasyApp] || DEFAULT_ENDPOINTS;
     let teams_list: any[] = [];
@@ -86,8 +104,12 @@ export async function POST(req: Request) {
           teams_list = data.teams_list;
           break;
         }
+        // If no teams but status is success (empty account), that's valid
+        if (data?.status === "success") {
+          teams_list = [];
+          break;
+        }
         lastError = data?.message || data?.error || "Failed to fetch teams";
-        // Token expiry -> stop
         const lower = lastError.toLowerCase();
         if (
           lower.includes("invalid token") ||
@@ -102,13 +124,16 @@ export async function POST(req: Request) {
       }
     }
 
+    const maxTeams = PLATFORM_LIMITS[fantasyApp] || 40;
     return NextResponse.json({
-      status: teams_list.length > 0 ? "success" : "fail",
+      status: "success",
       teams_list,
       presentTeamCount: teams_list.length,
-      maxTeams: PLATFORM_LIMITS[fantasyApp] || 40,
-      newSlots: Math.max(0, (PLATFORM_LIMITS[fantasyApp] || 40) - teams_list.length),
-      message: teams_list.length > 0 ? `${teams_list.length} existing teams found` : lastError,
+      maxTeams,
+      newSlots: Math.max(0, maxTeams - teams_list.length),
+      message: teams_list.length > 0
+        ? `${teams_list.length} existing teams found`
+        : lastError || "No existing teams",
     });
   } catch (e) {
     return NextResponse.json(

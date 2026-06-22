@@ -61,10 +61,31 @@ function isTokenExpired(errorMsg: string, data: any): boolean {
 async function fetchExistingTeams(
   fantasyApp: string,
   matchId: string,
-  authToken: string
+  authToken: string,
+  account?: any
 ): Promise<any[]> {
+  // For Dream11: extract accessToken from JSON wrapper if present
+  let effectiveAuthToken = authToken;
+  if (fantasyApp === "dream11" && effectiveAuthToken.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(effectiveAuthToken);
+      if (typeof parsed.accessToken === "string") effectiveAuthToken = parsed.accessToken;
+      else if (typeof parsed.access_token === "string") effectiveAuthToken = parsed.access_token;
+    } catch { /* use as-is */ }
+  }
+
   const endpoints = LIST_ENDPOINTS[fantasyApp] || ["/api/fantasy/list-of-teams"];
-  const payload = { fantasyApp, matchId: String(matchId), authToken };
+  const payload: Record<string, unknown> = {
+    fantasyApp,
+    matchId: String(matchId),
+    authToken: effectiveAuthToken,
+  };
+  // My11Circle-specific fields
+  if (fantasyApp === "my11circle" && account) {
+    if (account.my11circleChallenge) payload.my11circleChallenge = account.my11circleChallenge;
+    if (account.my11circleUserId) payload.my11circleUserId = account.my11circleUserId;
+    if (account.mobileNumber) payload.my11circleMobile = account.mobileNumber;
+  }
   for (const endpoint of endpoints) {
     try {
       const res = await fetch(`${BACKEND}${endpoint}`, {
@@ -179,7 +200,7 @@ export async function POST(req: Request) {
     }
 
     // Fetch existing teams on the platform (for replace logic)
-    const existingTeams = await fetchExistingTeams(fantasyApp, matchId, authToken);
+    const existingTeams = await fetchExistingTeams(fantasyApp, matchId, authToken, account);
     const presentTeamCount = existingTeams.length;
     const newSlots = Math.max(0, maxTeams - presentTeamCount);
 
@@ -263,13 +284,29 @@ export async function POST(req: Request) {
         }
       }
 
+      // For Dream11: if authToken is a JSON wrapper, extract the accessToken
+      // (matching original teamgeneration.in behavior)
+      let effectiveAuthToken = authToken;
+      if (fantasyApp === "dream11" && effectiveAuthToken.startsWith("{")) {
+        try {
+          const parsed = JSON.parse(effectiveAuthToken);
+          if (typeof parsed.accessToken === "string" && parsed.accessToken.length > 20) {
+            effectiveAuthToken = parsed.accessToken;
+          } else if (typeof parsed.access_token === "string" && parsed.access_token.length > 20) {
+            effectiveAuthToken = parsed.access_token;
+          }
+        } catch {
+          /* use as-is */
+        }
+      }
+
       const payload: Record<string, unknown> = {
         matchId,
         captain: captainId,
         vice_captain: viceCaptainId,
         players: playerIds,
         fantasyApp,
-        authToken,
+        authToken: effectiveAuthToken,
         sportIndex: 0,
         type: isEdit ? "edit" : "new",
       };
@@ -278,6 +315,13 @@ export async function POST(req: Request) {
         payload.team_id = existingTeamId;
         payload.team_number = existingTeamId;
       }
+      // My11Circle-specific fields
+      if (fantasyApp === "my11circle") {
+        if (account.my11circleChallenge) payload.my11circleChallenge = account.my11circleChallenge;
+        if (account.my11circleUserId) payload.my11circleUserId = account.my11circleUserId;
+        if (account.mobileNumber) payload.my11circleMobile = account.mobileNumber;
+      }
+      if (account.mobileNumber) payload.mobileNumber = account.mobileNumber;
 
       const endpointChain = isEdit ? config.edit : config.add;
       let teamTransferred = false;
