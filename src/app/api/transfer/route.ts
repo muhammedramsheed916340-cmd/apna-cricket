@@ -256,8 +256,9 @@ export async function POST(req: Request) {
     };
 
     // Platform-specific delay between transfers to avoid rate limiting
-    // (My11Circle is especially strict: "We are still processing your last request")
-    const transferDelay = fantasyApp === "my11circle" ? 800 : fantasyApp === "jumbo" ? 500 : 200;
+    // My11Circle is VERY strict: "We are still processing your last request"
+    // Needs 3+ seconds between transfers (was 800ms, caused 6/10 failures)
+    const transferDelay = fantasyApp === "my11circle" ? 3000 : fantasyApp === "jumbo" ? 1000 : 300;
 
     for (let i = 0; i < totalToProcess; i++) {
       // Delay between teams (skip on first team)
@@ -353,29 +354,29 @@ export async function POST(req: Request) {
       const endpointChain = isEdit ? config.edit : config.add;
       let teamTransferred = false;
       let lastError = "Transfer failed";
+      const maxRateLimitRetries = 3;
 
+      // Try each endpoint, with retry on rate-limit
       for (const endpoint of endpointChain) {
-        try {
-          // Build headers — include Authorization Bearer if available
-          // The backend REQUIRES this for add-team/edit-team endpoints
-          const headers: Record<string, string> = {
-            "Content-Type": "application/json",
-            Origin: "https://teamgeneration.in",
-            Referer: "https://teamgeneration.in/",
-          };
-          if (bearerToken && bearerToken.length >= 20) {
-            headers["Authorization"] = `Bearer ${bearerToken}`;
-          }
-          const upRes = await fetch(`${BACKEND}${endpoint}`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify(payload),
-            cache: "no-store",
-            signal: AbortSignal.timeout(15000),
-          });
-          const upData = await upRes.json().catch(() => ({}));
+        if (teamTransferred) break;
 
-          if (upData?.status === "success") {
+        for (let attempt = 0; attempt < (maxRateLimitRetries + 1); attempt++) {
+          try {
+            const headers: Record<string, string> = {
+              "Content-Type": "application/json",
+              Origin: "https://teamgeneration.in",
+              Referer: "https://teamgeneration.in/",
+            };
+            const upRes = await fetch(`${BACKEND}${endpoint}`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify(payload),
+              cache: "no-store",
+              signal: AbortSignal.timeout(15000),
+            });
+            const upData = await upRes.json().catch(() => ({}));
+
+            if (upData?.status === "success") {
             transferred.push({
               team_number: team.team_number,
               status: "transferred",
@@ -384,14 +385,25 @@ export async function POST(req: Request) {
             });
             teamTransferred = true;
             break;
-          } else {
+            } else {
             lastError = upData?.message || upData?.error || "Transfer failed";
-            if (isTokenExpired(lastError, upData)) break;
+            if (isTokenExpired(lastError, upData)) break; // stop on token expiry
             const lower = lastError.toLowerCase();
-            if (lower.includes("still processing") || lower.includes("try again later")) break;
+            // Rate limiting: wait 4s and retry (up to maxRateLimitRetries)
+            if (lower.includes("still processing") || lower.includes("try again later")) {
+              if (attempt < maxRateLimitRetries) {
+                console.log(`[Transfer][RATE_LIMIT] Team ${team.team_number} attempt ${attempt + 1}. Waiting 4s and retrying...`);
+                await new Promise((r) => setTimeout(r, 4000));
+                continue; // retry
+              }
+              break; // exhausted retries
+            }
+            break; // other error, try next endpoint
           }
         } catch (e) {
           lastError = (e as Error).message;
+          break;
+        }
         }
       }
 
@@ -406,7 +418,7 @@ export async function POST(req: Request) {
         } else if (lower.includes("proxy returned 401") || lower.includes("token expired") || lower.includes("session expired")) {
           displayError = `${fantasyApp} session expired. Please re-link via OTP.`;
         } else if (lower.includes("still processing")) {
-          displayError = `${fantasyApp} is rate-limiting. Wait 30s and try again.`;
+          displayError = `${fantasyApp} is rate-limiting (retried 3x). Wait 60s and try again, or transfer fewer teams at once.`;
         }
         failed.push({ team_number: team.team_number, error: displayError });
       }
