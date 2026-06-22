@@ -35,6 +35,8 @@ interface Account {
   authToken: string | null;
   linked: boolean;
   limit?: number;
+  my11circleChallenge?: string | null;
+  my11circleUserId?: string | null;
 }
 
 interface ExistingTeam {
