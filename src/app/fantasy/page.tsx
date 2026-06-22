@@ -370,8 +370,6 @@ export default function FantasyPage() {
           <ChevronRight size={16} color="#6c757d" />
         </a>
 
-        {/* Shared Token (Bearer JWT) status */}
-        <SharedTokenSection />
       </main>
 
       {/* OTP Modal */}

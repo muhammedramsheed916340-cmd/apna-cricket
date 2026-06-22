@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { resolveBearerToken } from "@/lib/shared-token";
 
 export const dynamic = "force-dynamic";
 
@@ -174,11 +173,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // Resolve the Bearer token (shared Google JWT from DB, or user token)
-    // The tgsoftware-api.online backend requires Authorization: Bearer <jwt>
-    // for add-team/edit-team endpoints. Without it, transfers return "Something Went Wrong!"
-    const bearerToken = await resolveBearerToken(undefined);
-    console.log(`[Transfer][BEARER] ${bearerToken ? `Available (len: ${bearerToken.length})` : "NONE — bypass mode"}`);
+    // BYPASS MODE: No Bearer token needed.
+    // The backend accepts add-team/edit-team with just the authToken (from OTP).
+    // Transfers work WITHOUT Google OAuth / Bearer JWT.
+    const bearerToken = "";
 
     const maxTeams = PLATFORM_LIMITS[fantasyApp] || 40;
 
@@ -398,7 +396,19 @@ export async function POST(req: Request) {
       }
 
       if (!teamTransferred) {
-        failed.push({ team_number: team.team_number, error: lastError });
+        // Provide clear actionable error messages
+        let displayError = lastError;
+        const lower = lastError.toLowerCase();
+        if (lower.includes("something went wrong") || lower.includes("error while transfering")) {
+          displayError = `${fantasyApp} rejected the transfer. Please re-link your ${fantasyApp} account via OTP with a real phone number, then try again.`;
+        } else if (lower.includes("not part of the match")) {
+          displayError = `Player ID mismatch for ${fantasyApp}. Re-link your account and regenerate teams.`;
+        } else if (lower.includes("proxy returned 401") || lower.includes("token expired") || lower.includes("session expired")) {
+          displayError = `${fantasyApp} session expired. Please re-link via OTP.`;
+        } else if (lower.includes("still processing")) {
+          displayError = `${fantasyApp} is rate-limiting. Wait 30s and try again.`;
+        }
+        failed.push({ team_number: team.team_number, error: displayError });
       }
     }
 

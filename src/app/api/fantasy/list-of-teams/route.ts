@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { resolveBearerToken } from "@/lib/shared-token";
 
 export const dynamic = "force-dynamic";
 
@@ -87,22 +86,16 @@ export async function POST(req: Request) {
     let teams_list: any[] = [];
     let lastError = "";
 
-    // Resolve Bearer token for the backend
-    const bearerToken = await resolveBearerToken(undefined);
-
+    // BYPASS MODE: No Bearer token needed — works with just authToken
     for (const endpoint of endpoints) {
       try {
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-          Origin: "https://teamgeneration.in",
-          Referer: "https://teamgeneration.in/",
-        };
-        if (bearerToken && bearerToken.length >= 20) {
-          headers["Authorization"] = `Bearer ${bearerToken}`;
-        }
         const res = await fetch(`${BACKEND}${endpoint}`, {
           method: "POST",
-          headers,
+          headers: {
+            "Content-Type": "application/json",
+            Origin: "https://teamgeneration.in",
+            Referer: "https://teamgeneration.in/",
+          },
           body: JSON.stringify(payload),
           cache: "no-store",
         });
