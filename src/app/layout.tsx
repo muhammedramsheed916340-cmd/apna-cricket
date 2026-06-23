@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/components/tg/auth-provider";
+import { LicenseProvider } from "@/lib/license-context";
 
 export const metadata: Metadata = {
   title: "Apna Cricket",
@@ -30,7 +31,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <LicenseProvider>{children}</LicenseProvider>
+        </AuthProvider>
         <Toaster />
       </body>
     </html>

@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,11 +11,15 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  deviceFp     String?
+  licenseKey   String?
+  banned       Boolean  @default(false)
+  lastActive   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model AppSetting {
@@ -27,4 +28,39 @@ model AppSetting {
   value     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model LicenseKey {
+  id            String    @id @default(cuid())
+  key           String    @unique
+  label         String?
+  status        String    @default("active") // active, suspended, expired, used
+  plan          String    @default("monthly") // trial, weekly, monthly, lifetime
+  maxDevices    Int       @default(1)
+  deviceFp      String?
+  boundAt       DateTime?
+  expiresAt     DateTime?
+  usageCount    Int       @default(0)
+  lastUsedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  type      String   // key_verify, login, team_gen, device_bind, admin_action, error, transfer
+  message   String
+  licenseKey String?
+  deviceFp  String?
+  ip        String?
+  createdAt DateTime @default(now())
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  target    String   @default("all") // all, premium, selected
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
 }

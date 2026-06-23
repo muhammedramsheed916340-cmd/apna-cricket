@@ -6,6 +6,8 @@ import { Menu, RefreshCw, ChevronLeft } from "lucide-react";
 import { SideNav } from "./side-nav";
 import { BottomNav } from "./bottom-nav";
 import { useAuth } from "./auth-provider";
+import { AdminTrigger } from "@/components/admin/AdminTrigger";
+import { LicenseGate } from "@/components/admin/LicenseGate";
 import type { Match } from "@/lib/matches";
 import { formatCountdown } from "@/lib/matches";
 import { CRICKET_MATCHES } from "@/lib/matches";
@@ -75,7 +77,9 @@ export function MatchShell({
           onClick={() => router.push("/")}
         />
         <span className="navbar-brand mb-0 text-center">
-          <img className="tg-logo" alt="Apna Cricket logo" src="/apna_cricket_logo.png" />
+          <AdminTrigger>
+            <img className="tg-logo" alt="Apna Cricket logo" src="/apna_cricket_logo.png" />
+          </AdminTrigger>
         </span>
         <RefreshCw
           size={28}
@@ -170,7 +174,9 @@ export function MatchShell({
         ))}
       </div>
 
-      <main style={{ padding: "12px 10px 80px", minHeight: 400 }}>{children}</main>
+      <main style={{ padding: "12px 10px 80px", minHeight: 400 }}>
+        <LicenseGate>{children}</LicenseGate>
+      </main>
 
       <BottomNav />
     </div>

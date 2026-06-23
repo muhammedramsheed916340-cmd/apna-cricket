@@ -1110,3 +1110,73 @@ Stage Summary:
 - All YouTube/Believer01/Bobby/phone references removed
 - Single Apna Cricket banner (was 5 old banners)
 - Transfer code NOT touched (user said "NEVER CHANGE")
+
+---
+Task ID: 28
+Agent: main
+Task: Build complete hidden admin panel + license system
+
+Work Log:
+- Created Prisma schema: LicenseKey, User, AppSetting, ActivityLog, Announcement models
+- Pushed schema to DB (bun run db:push + db:generate)
+- Built license API routes:
+  - /api/license/generate (POST) - generate single/bulk keys (RMSMT-XXXX-XXXX-XXXX)
+  - /api/license/verify (POST) - verify key + device binding (1 key = 1 device)
+  - /api/license/list (GET) - list all keys with filters
+  - /api/license/action (POST) - suspend/activate/delete/extend/reset_device
+  - /api/license/stats (GET) - dashboard stats
+- Built admin API routes:
+  - /api/admin/stats (GET) - dashboard cards data
+  - /api/admin/users (GET/POST) - user management + ban/unban/delete
+  - /api/admin/devices (GET) - bound devices list
+  - /api/admin/logs (GET) - activity logs with time filters
+  - /api/admin/settings (GET/POST) - app settings management
+  - /api/admin/announcement (GET/POST) - announcements
+- Created license context provider (src/lib/license-context.tsx):
+  - Auto-verifies on mount via /api/license/verify
+  - Generates unique deviceId stored in localStorage
+  - Exposes: verified, licenseKey, plan, verify, loading
+- Created AdminTrigger component (5 taps on logo within 3s):
+  - Also supports long press (3s)
+  - Shows admin login popup (🛡️ RMSMT ADMIN PANEL)
+  - Credentials: admin / rmsmt_admin_2025
+  - On success: opens admin dashboard
+- Created AdminDashboard component (full-screen overlay):
+  - 7 tabs: Dashboard, Licenses, Devices, Users, Logs, Settings, Announcements
+  - Dashboard: 8 stat cards (Total/Active/Used/Expired Keys, Devices, Verifs, Users, Teams)
+  - Licenses: generate single/bulk (1/10/50/100/500), plan selection (trial/weekly/monthly/lifetime)
+    Actions: suspend/activate/delete/extend(+30d)/reset_device
+  - Devices: bound devices list with search + unbind
+  - Users: ban/unban/delete/reset_license/reset_device
+  - Logs: activity logs with filters (today/7days/30days/all)
+  - Settings: admin password, API URL, license prefix, maintenance mode, feature toggles
+  - Announcements: create with target (all/premium/selected)
+  - Black + blue theme (#000 bg, #0066ff accents, #00b050 green buttons)
+- Created LicenseGate component:
+  - Shows lock overlay on team generation pages if no license
+  - "🔒 License Required" + input for RMSMT-XXXX-XXXX-XXXX + "Verify Key" button
+  - Success: "✅ RMSMT License Verified Successfully" + auto-reload
+  - Failure: "❌ Invalid RMSMT License Key"
+  - Notes: 1 Key = 1 Device, Device Binding, Online Verification, Auto Login
+- Integrated:
+  - LicenseProvider in layout.tsx
+  - AdminTrigger wrapping header logo
+  - LicenseGate wrapping match-shell children (locks team gen pages)
+- API-tested:
+  - Generate: created RMSMT-GSDC-7KFW-326N, RMSMT-BU3N-QVBU-P8ZS ✅
+  - Verify: "✅ RMSMT License Verified Successfully" ✅
+  - Stats: totalKeys=2, activeKeys=1, usedKeys=1, activeDevices=1 ✅
+- Browser-verified:
+  - 5 taps on logo → admin login popup ✅
+  - Login (admin/rmsmt_admin_2025) → admin dashboard ✅
+  - Dashboard shows 8 stat cards with correct numbers ✅
+  - 7 tabs visible (Dashboard/Licenses/Devices/Users/Logs/Settings/Announcements) ✅
+  - Match page shows license lock overlay (no license) ✅
+- Lint passes cleanly (0 errors)
+
+Stage Summary:
+- Complete hidden admin panel with 5-tap trigger, login, and 7-tab dashboard
+- License system: generate/verify/list/action/stats APIs
+- Device binding: 1 key = 1 device, auto-bound on verify
+- License gate: locks team generation pages until valid key entered
+- All verified end-to-end via API + browser

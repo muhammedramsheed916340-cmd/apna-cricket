@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Menu, RefreshCw } from "lucide-react";
+import { AdminTrigger } from "@/components/admin/AdminTrigger";
 
 export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const router = useRouter();
@@ -18,7 +19,9 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         aria-label="Open menu"
       />
       <span className="navbar-brand mb-0 text-center">
-        <img className="tg-logo" alt="Apna Cricket logo" src="/apna_cricket_logo.png" />
+        <AdminTrigger>
+          <img className="tg-logo" alt="Apna Cricket logo" src="/apna_cricket_logo.png" />
+        </AdminTrigger>
       </span>
       <RefreshCw
         size={32}
