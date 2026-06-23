@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { CRICKET_MATCHES, type Match } from "@/lib/matches";
+import { fetchMatches } from "@/lib/tg-api";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,61 +16,24 @@ function parseTimerDuration(timer: string): number {
   return ms;
 }
 
+// Fetch LIVE matches from the real backend (decrypted)
 async function fetchLiveMatches(): Promise<Match[] | null> {
   try {
-    const res = await fetch("https://teamgeneration.in/", {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-        Accept: "text/html,application/xhtml+xml",
-      },
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-    const html = await res.text();
-    const serverNow = Date.now();
+    const realMatches = await fetchMatches("cricket");
+    if (!realMatches || realMatches.length === 0) return null;
 
-    const matches: Match[] = [];
-    const cardRegex =
-      /<div class="match-card">[\s\S]*?<span class="series-name">([^<]+)<\/span>[\s\S]*?alt="left" src="([^"]+)"[\s\S]*?<span class="left-team-name">([^<]+)<\/span>[\s\S]*?<div class="timer">([^<]*)<\/div>[\s\S]*?<span class="right-team-name">([^<]+)<\/span>[\s\S]*?alt="right" src="([^"]+)"[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/g;
-    let cardMatch: RegExpExecArray | null;
-    let idx = 0;
-    while ((cardMatch = cardRegex.exec(html)) !== null) {
-      const series = cardMatch[1].trim();
-      const leftFlag = cardMatch[2].trim();
-      const leftName = cardMatch[3].trim();
-      const timer = cardMatch[4].trim();
-      const rightName = cardMatch[5].trim();
-      const rightFlag = cardMatch[6].trim();
+    const now = Date.now();
+    const matches: Match[] = realMatches.map((m) => ({
+      id: m.id, // REAL match ID (e.g. 113523)
+      series: m.series,
+      sport: "cricket",
+      leftTeam: { name: m.team1Name, flag: m.team1Image },
+      rightTeam: { name: m.team2Name, flag: m.team2Image },
+      badges: ["Mega GL", "SL", "H2H"] as ("Mega GL" | "SL" | "H2H")[],
+      targetTime: new Date(m.matchTime).getTime(),
+    }));
 
-      const badges: ("Mega GL" | "SL" | "H2H")[] = [];
-      if (/badge-outline-success">Mega GL/.test(cardMatch[0])) badges.push("Mega GL");
-      if (/badge-outline-warning">SL/.test(cardMatch[0])) badges.push("SL");
-      if (/badge-outline-danger">H2H/.test(cardMatch[0])) badges.push("H2H");
-
-      if (series && leftName && rightName && timer) {
-        const targetTime = serverNow + parseTimerDuration(timer);
-        // Map to our known match IDs based on team names so player data links up
-        const idMap: Record<string, string> = {
-          "NZ-SCO": "nz-sco-wt20",
-          "SL-IRE": "sl-ire-wt20",
-          "AUS-PAK": "aus-pak-wt20",
-        };
-        const key = `${leftName}-${rightName}`;
-        const id = idMap[key] || `live-${idx}`;
-        matches.push({
-          id,
-          series,
-          sport: "cricket",
-          leftTeam: { name: leftName, flag: leftFlag },
-          rightTeam: { name: rightName, flag: rightFlag },
-          badges: badges.length ? badges : ["Mega GL", "SL", "H2H"],
-          targetTime,
-        });
-        idx++;
-      }
-    }
-    return matches.length ? matches : null;
+    return matches;
   } catch {
     return null;
   }
