@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Users, Coins, ChevronRight, Info } from "lucide-react";
 import { MatchShell } from "@/components/tg/match-shell";
 import { ROLE_LABELS, ROLE_FULL, type Player } from "@/lib/players";
+import { storePlayerPool } from "@/lib/teams-storage";
 
 const ROLE_COLORS = ["#17a2b8", "#28a745", "#ffc107", "#dc3545"];
 const ROLE_BG = ["#e3f7fa", "#e8f8ea", "#fff8e1", "#fdecee"];
@@ -66,6 +67,8 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
       alert("Select exactly 11 players");
       return;
     }
+    // Store the selected player pool for generation pages to use
+    storePlayerPool(matchId, selectedPlayers);
     router.push(`/match/${matchId}/smart`);
   };
 

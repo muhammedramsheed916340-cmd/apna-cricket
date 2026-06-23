@@ -1180,3 +1180,36 @@ Stage Summary:
 - Device binding: 1 key = 1 device, auto-bound on verify
 - License gate: locks team generation pages until valid key entered
 - All verified end-to-end via API + browser
+
+---
+Task ID: 30
+Agent: main
+Task: Fix team generation - use selected players from Section page
+
+Work Log:
+- ROOT CAUSE: Section page let user select 11 players, but Continue just navigated to /smart
+  WITHOUT passing the selected players. Smart/Grand/Advanced pages generated teams using ALL
+  31 players (not the user's 11-player selection).
+- FIX 1: Created storePlayerPool/getPlayerPool in teams-storage.ts
+  - Stores the 11 selected players in localStorage per match
+- FIX 2: Section page now stores selected players on Continue:
+  storePlayerPool(matchId, selectedPlayers) before navigating to /smart
+- FIX 3: generate-teams API accepts playerPool in request body:
+  - If playerPool provided (>= 11 players), uses it instead of fetching all
+  - Falls back to fetching all if no pool
+- FIX 4: Smart/Grand/Advanced pages all send playerPool from localStorage:
+  - const playerPool = getPlayerPool(matchId)
+  - playerPool: playerPool.length >= 11 ? playerPool : undefined
+- Browser-verified full flow:
+  1. Section page: 31 real players shown in WK/BAT/AR/BOWL groups
+  2. Selected 11 players → 11/11 selected
+  3. Continue → 11 players stored in pool → navigated to Smart
+  4. Generate Teams → 5 teams generated from the SELECTED 11 players
+  5. Team players: "Sarah Bryce, Maddy Green, Brooke Halliday, Megan McColl, Ailsa Lister"
+     (these are from the user's selection, not all 31)
+- Lint passes cleanly (0 errors)
+
+Stage Summary:
+- Team generation now uses the player pool selected on the Section page
+- Flow: Select 11 players → Continue → Generate → Teams use ONLY selected players
+- All 3 generation pages (Smart/Grand/Advanced) use the player pool

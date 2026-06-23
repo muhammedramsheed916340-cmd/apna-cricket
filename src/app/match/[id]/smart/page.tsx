@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Zap, RefreshCw, Download, ChevronRight } from "lucide-react";
 import { MatchShell } from "@/components/tg/match-shell";
 import { ROLE_LABELS } from "@/lib/players";
-import { storeTeams } from "@/lib/teams-storage";
+import { storeTeams, getPlayerPool } from "@/lib/teams-storage";
 
 const STRATEGIES = [
   { id: "batting", label: "Batting", desc: "More batsmen focus" },
@@ -55,6 +55,9 @@ export default function SmartPage({ params }: { params: Promise<{ id: string }> 
           : strategy[0] === "bowling"
           ? { wk: 1, bat: 3, ar: 2, bowl: 5 }
           : { wk: 1, bat: 4, ar: 3, bowl: 3 };
+      // Get the player pool selected on the Section page
+      const playerPool = getPlayerPool(matchId);
+
       const res = await fetch("/api/generate-teams", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -63,6 +66,7 @@ export default function SmartPage({ params }: { params: Promise<{ id: string }> 
           type: "smart",
           teamCount,
           combination: comb,
+          playerPool: playerPool.length >= 11 ? playerPool : undefined,
         }),
       });
       const data = await res.json();

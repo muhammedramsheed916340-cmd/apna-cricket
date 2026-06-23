@@ -34,6 +34,7 @@ interface GenRequest {
   combination: { wk: number; bat: number; ar: number; bowl: number };
   captainIds?: string[];
   viceCaptainIds?: string[];
+  playerPool?: Player[]; // selected players from Section page
 }
 
 interface GeneratedTeam {
@@ -73,7 +74,8 @@ function pickByRole(players: Player[], role: number, count: number, teamBias: "l
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as GenRequest;
-    const all = await getRealPlayers(body.matchId);
+    // Use the player pool from Section page if provided, otherwise fetch all
+    const all = body.playerPool && body.playerPool.length >= 11 ? body.playerPool : await getRealPlayers(body.matchId);
     if (!all.length) {
       return NextResponse.json(
         { status: "error", message: "No players found for match" },

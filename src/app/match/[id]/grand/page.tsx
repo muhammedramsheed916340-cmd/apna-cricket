@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Trophy, RefreshCw, ChevronRight } from "lucide-react";
 import { MatchShell } from "@/components/tg/match-shell";
 import { ROLE_LABELS } from "@/lib/players";
-import { storeTeams, getCombinations } from "@/lib/teams-storage";
+import { storeTeams, getCombinations, getPlayerPool } from "@/lib/teams-storage";
 
 const COMBINATIONS = [
   { label: "1-4-3-3", wk: 1, bat: 4, ar: 3, bowl: 3 },
@@ -62,6 +62,7 @@ export default function GrandPage({ params }: { params: Promise<{ id: string }> 
       const teamsPerComb = Math.max(1, Math.floor(teamCount / combsToUse.length));
       const allTeams: GenTeam[] = [];
       let teamOffset = 0;
+      const playerPool = getPlayerPool(matchId);
 
       for (const comb of combsToUse) {
         const res = await fetch("/api/generate-teams", {
@@ -77,6 +78,7 @@ export default function GrandPage({ params }: { params: Promise<{ id: string }> 
               ar: comb.ar,
               bowl: comb.bowl,
             },
+            playerPool: playerPool.length >= 11 ? playerPool : undefined,
           }),
         });
         const data = await res.json();

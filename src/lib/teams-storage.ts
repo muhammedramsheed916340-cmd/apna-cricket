@@ -97,3 +97,35 @@ function getAllCombinations(): Record<string, Combination[]> {
     return {};
   }
 }
+
+// ===== Selected player pool storage =====
+// Stores the 11 players selected on the Section page for use in generation pages
+
+const POOL_KEY = "tg_selected_pool";
+
+export function storePlayerPool(matchId: string, players: any[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    const all = getAllPools();
+    all[matchId] = players;
+    localStorage.setItem(POOL_KEY, JSON.stringify(all));
+  } catch {}
+}
+
+export function getPlayerPool(matchId: string): any[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const all = getAllPools();
+    return all[matchId] || [];
+  } catch {
+    return [];
+  }
+}
+
+function getAllPools(): Record<string, any[]> {
+  try {
+    return JSON.parse(localStorage.getItem(POOL_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}

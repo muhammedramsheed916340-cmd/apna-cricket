@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Sparkles, RefreshCw, ChevronRight, SlidersHorizontal } from "lucide-react";
 import { MatchShell } from "@/components/tg/match-shell";
 import { ROLE_LABELS } from "@/lib/players";
-import { storeTeams } from "@/lib/teams-storage";
+import { storeTeams, getPlayerPool } from "@/lib/teams-storage";
 
 const ADVANCED_FILTERS = [
   { id: "form", label: "In-Form Players", desc: "High recent selection %" },
@@ -35,6 +35,7 @@ export default function AdvancedPage({ params }: { params: Promise<{ id: string 
     setLoading(true);
     setTeams([]);
     try {
+      const playerPool = getPlayerPool(matchId);
       const res = await fetch("/api/generate-teams", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -43,6 +44,7 @@ export default function AdvancedPage({ params }: { params: Promise<{ id: string 
           type: "advanced",
           teamCount,
           combination: { wk: 1, bat: 4, ar: 3, bowl: 3 },
+          playerPool: playerPool.length >= 11 ? playerPool : undefined,
         }),
       });
       const data = await res.json();
