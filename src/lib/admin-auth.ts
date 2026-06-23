@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 // Hard-coded master admin password. This is the single source of truth for
 // admin API authentication. The /api/admin/settings POST route can also
 // override it via the `admin_password` AppSetting key.
-export const MASTER_ADMIN_PASSWORD = "rmsmt_admin_2025";
+export const MASTER_ADMIN_PASSWORD = "8950888988";
 
 /**
  * Verify the admin password. The setting `admin_password` in the AppSetting

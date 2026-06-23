@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Shield, X, Loader2 } from "lucide-react";
 
 const ADMIN_USER = "admin";
-const ADMIN_PASS = "rmsmt_admin_2025";
+const ADMIN_PASS = "8950888988";
 
 export function AdminTrigger({ children }: { children: React.ReactNode }) {
   const [tapCount, setTapCount] = useState(0);
@@ -42,13 +42,12 @@ export function AdminTrigger({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError("");
     setTimeout(() => {
-      if (username === ADMIN_USER && password === ADMIN_PASS) {
+      if (password === ADMIN_PASS) {
         setShowLogin(false);
         setShowDashboard(true);
-        setUsername("");
         setPassword("");
       } else {
-        setError("❌ Invalid credentials");
+        setError("❌ Invalid password");
       }
       setLoading(false);
     }, 500);
@@ -83,15 +82,8 @@ export function AdminTrigger({ children }: { children: React.ReactNode }) {
               <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0066ff" }}>🛡️ RMSMT ADMIN PANEL</h2>
             </div>
             <input
-              type="text"
-              placeholder="Username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              style={{ width: "100%", padding: "10px 12px", background: "#111", border: "1px solid #333", borderRadius: 6, color: "#fff", fontSize: 14, marginBottom: 10 }}
-            />
-            <input
               type="password"
-              placeholder="Password"
+              placeholder="Admin Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleLogin()}

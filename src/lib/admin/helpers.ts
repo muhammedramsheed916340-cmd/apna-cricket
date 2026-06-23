@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 
-export const ADMIN_PASSWORD = "rmsmt_admin_2025";
+export const ADMIN_PASSWORD = "8950888988";
 export const LICENSE_PREFIX = "RMSMT";
 
 export function generateLicenseKey(): string {

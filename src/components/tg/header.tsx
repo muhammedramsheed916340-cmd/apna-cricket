@@ -27,7 +27,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         size={32}
         className="text-white"
         style={{ marginRight: 5, cursor: "pointer" }}
-        onClick={() => router.refresh()}
+        onClick={() => window.location.reload()}
         aria-label="Refresh"
       />
     </nav>

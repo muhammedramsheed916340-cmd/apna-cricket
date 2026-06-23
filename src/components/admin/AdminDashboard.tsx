@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Key, Smartphone, Users, FileText, Settings, Megaphone, BarChart3, Plus, Trash2, Ban, CheckCircle2, Clock, RefreshCw } from "lucide-react";
 
-const ADMIN_PASS = "rmsmt_admin_2025";
+const ADMIN_PASS = "8950888988";
 
 type Tab = "dashboard" | "licenses" | "devices" | "users" | "logs" | "settings" | "announcements";
 
@@ -326,7 +326,7 @@ function AnnouncementTab() {
     await fetch("/api/admin/announcement", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, message, target, adminPassword: "rmsmt_admin_2025" }),
+      body: JSON.stringify({ title, message, target, adminPassword: "8950888988" }),
     });
     setSent(true);
     setTitle(""); setMessage("");

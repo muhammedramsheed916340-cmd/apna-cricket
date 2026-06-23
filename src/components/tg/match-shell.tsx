@@ -85,7 +85,7 @@ export function MatchShell({
           size={28}
           className="text-white"
           style={{ marginRight: 8, cursor: "pointer" }}
-          onClick={() => router.refresh()}
+          onClick={() => window.location.reload()}
         />
       </nav>
 
