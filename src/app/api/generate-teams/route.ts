@@ -21,6 +21,7 @@ async function getRealPlayers(matchId: string): Promise<Player[]> {
       selBy: p.selectedBy,
       fantasyId: p.fantasyId,
       fantasyIdList: p.fantasyIdList,
+      playing: p.playing,
     }));
   } catch {
     return getMatchPlayers(matchId);

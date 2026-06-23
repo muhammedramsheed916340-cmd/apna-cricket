@@ -11,6 +11,7 @@ export interface Player {
   selBy: number; // selection %
   fantasyId: number; // Dream11 ID (default)
   fantasyIdList?: Array<{ name: string; id: number }>; // per-platform IDs
+  playing?: boolean | null; // true=playing XI, false=bench, null=unknown (lineup not out)
 }
 
 const NZ_WT20: Player[] = [

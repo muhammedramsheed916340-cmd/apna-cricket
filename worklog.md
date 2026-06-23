@@ -1284,3 +1284,26 @@ Stage Summary:
 - Bench players HIDDEN from Section page, Team Generator, Transfer, all pages
 - Generated teams can NEVER contain bench players
 - No exceptions
+
+---
+Task ID: 33
+Agent: main
+Task: Fix team generation adding bench players - playing field was missing
+
+Work Log:
+- ROOT CAUSE: getRealPlayers() in generate-teams API did NOT include the 'playing' field
+  when mapping players from fetchMatchDetail. The strict lineup filter checked
+  p.playing === true, but playing was undefined for all players → filter didn't work.
+- FIX 1: Added 'playing: p.playing' to getRealPlayers() player mapping
+- FIX 2: Added 'playing?: boolean | null' to Player interface in players.ts
+- Verified: generated teams now contain ONLY Playing XI players
+  - Team #1: All playing=true? True ✅
+  - Team #2: All playing=true? True ✅
+  - Team #3: All playing=true? True ✅
+- All 5 teams generated from 22 playing XI players only (0 bench players)
+- Lint passes cleanly (0 errors)
+
+Stage Summary:
+- Team generation now ONLY uses Playing XI players when lineups are out
+- Bench players can NEVER appear in generated teams
+- 'playing' field properly passed from backend → tg-api → generate-teams → teams
