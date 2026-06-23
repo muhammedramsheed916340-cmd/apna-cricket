@@ -1246,3 +1246,41 @@ Stage Summary:
 - Each player shows ✅ Playing or ❌ Bench label
 - Bench players dimmed (opacity 0.5)
 - Users can see lineup status at a glance
+
+---
+Task ID: 32
+Agent: main
+Task: STRICT LINEUP MODE - hide all bench players, only Playing XI visible
+
+Work Log:
+- Implemented STRICT LINEUP MODE across all code:
+- FIX 1: Players API (/api/players):
+  - When lineup is out (lineupOut=true), returns ONLY playing XI players
+  - Bench/substitute/reserve/injured/non-playing players are HIDDEN from API response
+  - Returns lineupOut flag so frontend knows
+  - Verified: count=22 (was 31), 0 bench players, all playing=true
+- FIX 2: Generate-teams API (/api/generate-teams):
+  - Filters out ALL non-playing players from the pool BEFORE generating teams
+  - If playerPool contains bench players, they are removed
+  - No bench player can EVER appear in a generated team
+  - Verified: Bench1 and Bench2 NOT in generated team
+- FIX 3: Section page:
+  - Uses lineupOut from API response (not local check)
+  - Auto-selects ALL players (they're all playing XI when lineup is out)
+  - Banner: "✅ LINEUPS OUT — STRICT MODE: Only N Playing XI players shown. Bench/substitute/reserve/injured HIDDEN."
+- STRICT VALIDATION:
+  ❌ Bench Player = Not Allowed (filtered out)
+  ❌ Substitute = Not Allowed (filtered out)
+  ❌ Reserve = Not Allowed (filtered out)
+  ❌ Injured = Not Allowed (filtered out)
+  ❌ Non-Playing XI = Not Allowed (filtered out)
+  ✅ Only Official Playing XI Players Visible
+  ✅ Only Official Playing XI Players Used
+  ✅ Only Official Playing XI Players Generated
+- Lint passes cleanly (0 errors)
+
+Stage Summary:
+- STRICT LINEUP MODE active: only Playing XI players are visible and used
+- Bench players HIDDEN from Section page, Team Generator, Transfer, all pages
+- Generated teams can NEVER contain bench players
+- No exceptions

@@ -75,10 +75,18 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json()) as GenRequest;
     // Use the player pool from Section page if provided, otherwise fetch all
-    const all = body.playerPool && body.playerPool.length >= 11 ? body.playerPool : await getRealPlayers(body.matchId);
+    let all = body.playerPool && body.playerPool.length >= 11 ? body.playerPool : await getRealPlayers(body.matchId);
+
+    // STRICT LINEUP MODE: Filter out ALL non-playing players
+    // No bench, substitute, reserve, injured, or non-playing XI players allowed
+    const hasLineup = all.some((p: any) => p.playing !== null && p.playing !== undefined);
+    if (hasLineup) {
+      all = all.filter((p: any) => p.playing === true);
+    }
+
     if (!all.length) {
       return NextResponse.json(
-        { status: "error", message: "No players found for match" },
+        { status: "error", message: "No playing XI players found for match" },
         { status: 404 }
       );
     }

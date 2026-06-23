@@ -30,15 +30,15 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
       .then((r) => r.json())
       .then((d) => {
         if (d?.players) {
+          // API already returns ONLY playing XI players when lineup is out
+          // (bench/substitute/reserve/injured/non-playing are HIDDEN)
           setPlayers(d.players);
-          // Check if lineups are out (any player has playing !== null)
-          const hasLineup = d.players.some((p: any) => p.playing !== null && p.playing !== undefined);
-          setLineupOut(hasLineup);
-          // Auto-select only playing players if lineup is out
-          if (hasLineup) {
+          setLineupOut(!!d.lineupOut);
+          // Auto-select ALL players (they're all playing XI when lineup is out)
+          if (d.lineupOut) {
             const autoSel: Record<string, boolean> = {};
             d.players.forEach((p: any) => {
-              if (p.playing === true) autoSel[p.id] = true;
+              autoSel[p.id] = true;
             });
             setSelected(autoSel);
           }
@@ -112,7 +112,7 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
           fontSize: 12,
           fontWeight: 700,
         }}>
-          ✅ LINEUPS OUT — Playing players auto-selected ({players.filter((p: any) => p.playing === true).length} players)
+          ✅ LINEUPS OUT — STRICT MODE: Only {players.length} Playing XI players shown. Bench/substitute/reserve/injured HIDDEN.
         </div>
       )}
 

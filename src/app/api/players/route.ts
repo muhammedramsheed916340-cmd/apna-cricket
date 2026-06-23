@@ -25,7 +25,7 @@ export async function GET(req: Request) {
   }
 
   // Convert to the Player format expected by the UI
-  const players = detail.players.map((p, i) => ({
+  const allPlayers = detail.players.map((p, i) => ({
     id: `${p.name}-${i}`,
     name: p.name,
     role: p.role as 0 | 1 | 2 | 3,
@@ -40,11 +40,19 @@ export async function GET(req: Request) {
     viceCaptainPercentage: p.viceCaptainPercentage,
   }));
 
+  // STRICT LINEUP MODE: If lineups are out, return ONLY playing XI players
+  // Hide all bench, substitute, reserve, injured, and non-playing players
+  const lineupOut = allPlayers.some((p) => p.playing !== null && p.playing !== undefined);
+  const players = lineupOut
+    ? allPlayers.filter((p) => p.playing === true)
+    : allPlayers;
+
   return NextResponse.json({
     status: "success",
     matchId,
     count: players.length,
     players,
+    lineupOut,
     team1Name: detail.team1Name,
     team2Name: detail.team2Name,
   });
