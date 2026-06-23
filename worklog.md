@@ -1213,3 +1213,36 @@ Stage Summary:
 - Team generation now uses the player pool selected on the Section page
 - Flow: Select 11 players → Continue → Generate → Teams use ONLY selected players
 - All 3 generation pages (Smart/Grand/Advanced) use the player pool
+
+---
+Task ID: 31
+Agent: main
+Task: Fix lineup display - show Lineups Out + auto-select playing players
+
+Work Log:
+- Checked real backend: match 113523 has lineup_status=1 (OUT), 22 playing, 9 bench
+- The players API already returns 'playing' field (true/false/null) from tg-api.ts
+- But the Section page was NOT using it — no lineup banner, no playing/bench labels
+- FIX 1: Added lineup detection + auto-select:
+  - Checks if any player has playing !== null (lineup is out)
+  - Sets lineupOut state
+  - Auto-selects only playing=true players
+- FIX 2: Added LINEUPS OUT banner (green→blue gradient):
+  "✅ LINEUPS OUT — Playing players auto-selected (22 players)"
+- FIX 3: Player cards now show playing status:
+  - "✅ Playing" (green) for playing=true
+  - "❌ Bench" (red) for playing=false
+- FIX 4: Bench players are dimmed (opacity 0.5) for visual distinction
+- Browser-verified:
+  - Banner: "✅ LINEUPS OUT — Playing players auto-selected (22 players)" ✅
+  - Players marked Playing/Bench ✅
+  - Bench players dimmed ✅
+  - 22 playing players auto-selected ✅
+- Lint passes cleanly (0 errors)
+
+Stage Summary:
+- Lineups Out banner shows when lineup_status=1
+- Playing players auto-selected (22 for this match)
+- Each player shows ✅ Playing or ❌ Bench label
+- Bench players dimmed (opacity 0.5)
+- Users can see lineup status at a glance

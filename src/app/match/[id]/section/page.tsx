@@ -18,6 +18,7 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [combination, setCombination] = useState({ wk: 1, bat: 4, ar: 3, bowl: 3 });
   const [teamCount, setTeamCount] = useState(5);
+  const [lineupOut, setLineupOut] = useState(false);
 
   useEffect(() => {
     params.then((p) => setMatchId(p.id));
@@ -28,7 +29,20 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
     fetch(`/api/players?matchId=${matchId}`)
       .then((r) => r.json())
       .then((d) => {
-        if (d?.players) setPlayers(d.players);
+        if (d?.players) {
+          setPlayers(d.players);
+          // Check if lineups are out (any player has playing !== null)
+          const hasLineup = d.players.some((p: any) => p.playing !== null && p.playing !== undefined);
+          setLineupOut(hasLineup);
+          // Auto-select only playing players if lineup is out
+          if (hasLineup) {
+            const autoSel: Record<string, boolean> = {};
+            d.players.forEach((p: any) => {
+              if (p.playing === true) autoSel[p.id] = true;
+            });
+            setSelected(autoSel);
+          }
+        }
       })
       .finally(() => setLoading(false));
   }, [matchId]);
@@ -84,6 +98,24 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
 
   return (
     <MatchShell matchId={matchId} active="section">
+      {/* Lineup status banner */}
+      {lineupOut && (
+        <div style={{
+          background: "linear-gradient(90deg, #00b050, #0066ff)",
+          color: "#fff",
+          padding: "8px 12px",
+          borderRadius: 6,
+          marginBottom: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          fontSize: 12,
+          fontWeight: 700,
+        }}>
+          ✅ LINEUPS OUT — Playing players auto-selected ({players.filter((p: any) => p.playing === true).length} players)
+        </div>
+      )}
+
       {/* Top stats bar */}
       <div
         style={{
@@ -238,6 +270,7 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
                         cursor: "pointer",
                         textAlign: "left",
                         fontSize: 13,
+                        opacity: (p as any).playing === false ? 0.5 : 1,
                       }}
                     >
                       <div
@@ -271,6 +304,8 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
                         </div>
                         <div style={{ fontSize: 10, color: "#6c757d" }}>
                           {p.team === "left" ? "Team A" : "Team B"} · Sel {p.selBy}%
+                          {(p as any).playing === true && <span style={{ color: "#00b050", fontWeight: 700 }}> · ✅ Playing</span>}
+                          {(p as any).playing === false && <span style={{ color: "#dc3545", fontWeight: 700 }}> · ❌ Bench</span>}
                         </div>
                       </div>
                       <div style={{ textAlign: "right", flexShrink: 0 }}>
