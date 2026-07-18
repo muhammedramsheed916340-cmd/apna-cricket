@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { History, PlusSquare } from "lucide-react";
+import { History, PlusSquare, Flame } from "lucide-react";
 import { Header } from "@/components/tg/header";
 import { TopNav } from "@/components/tg/top-nav";
 import { BottomNav } from "@/components/tg/bottom-nav";
@@ -17,12 +17,10 @@ export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [sport, setSport] = useState("cricket");
   const [matches, setMatches] = useState<Match[]>(CRICKET_MATCHES);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
-    (async () => {
-      setLoading(true);
+    const fetchMatches = async () => {
       try {
         const res = await fetch("/api/matches", { cache: "no-store" });
         const json = await res.json();
@@ -30,82 +28,76 @@ export default function HomePage() {
           setMatches(json.data);
         }
       } catch {
-        // keep captured real data as fallback
-      } finally {
-        if (alive) setLoading(false);
+        // keep existing data as fallback
       }
-    })();
+    };
+    fetchMatches();
+    // Silent auto-refresh every 5 minutes (no loading state, no blank page)
+    const interval = setInterval(fetchMatches, 5 * 60 * 1000);
     return () => {
       alive = false;
+      clearInterval(interval);
     };
   }, [sport]);
 
   return (
-    <div className="tg-app">
+    <div className="ac-app">
       <SideNav open={menuOpen} onClose={() => setMenuOpen(false)} />
       <Header onMenuClick={() => setMenuOpen(true)} />
       <TopNav active={sport} onChange={setSport} />
 
-      <main style={{ padding: "8px 10px 24px" }}>
+      <main
+        style={{
+          padding: "8px 14px 8px",
+          display: "flex",
+          flexDirection: "column",
+          flex: 1,
+        }}
+      >
         <BannerCarousel />
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "6px 4px",
-          }}
-        >
-          <h4
-            style={{
-              fontSize: 16,
-              fontWeight: 700,
-              color: "#212529",
-              margin: 0,
-            }}
-          >
+        <div className="ac-section-title">
+          <h4>
+            <span className="ac-live-dot" aria-hidden="true" />
             Upcoming Matches
           </h4>
           <button
             type="button"
-            className="btn-tg-success"
-            style={{
-              fontWeight: 400,
-              fontSize: 12,
-              padding: "4px 8px",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-            }}
-            onClick={() => router.push("/login")}
+            className="ac-link-btn"
+            onClick={() => router.push("/savedmatches")}
           >
-            <History size={14} />
-            <span>Saved Matches</span>
+            <History size={13} />
+            Saved
           </button>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column" }}>
-          {loading && (
-            <div style={{ textAlign: "center", padding: 20, color: "#6c757d", fontSize: 13 }}>
-              Loading matches…
+          {matches.map((m) => (
+            <MatchCard key={m.id} match={m} />
+          ))}
+          {matches.length === 0 && (
+            <div className="ac-empty">
+              <div className="ac-empty-icon">
+                <PlusSquare size={26} />
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+                No upcoming matches
+              </div>
+              <div style={{ fontSize: 12 }}>
+                {sport} matches will appear here soon.
+              </div>
             </div>
           )}
-          {!loading &&
-            matches.map((m) => <MatchCard key={m.id} match={m} />)}
-          {!loading && matches.length === 0 && (
-            <div
-              style={{
-                textAlign: "center",
-                padding: 30,
-                color: "#6c757d",
-                fontSize: 13,
-              }}
-            >
-              <PlusSquare size={28} style={{ marginBottom: 8, opacity: 0.4 }} />
-              <div>No upcoming matches for {sport}</div>
-            </div>
-          )}
+        </div>
+
+        <div className="ac-credits">
+          <div style={{ marginBottom: 4 }}>
+            <Flame size={12} style={{ verticalAlign: "middle", marginRight: 4 }} />
+            Crafted for fantasy cricket champions
+          </div>
+          <div>
+            © 2025 <b>Apna Cricket</b> · All Rights Reserved
+          </div>
         </div>
       </main>
 

@@ -18,20 +18,20 @@ export function TopNav({
   onChange: (id: string) => void;
 }) {
   return (
-    <nav className="tg-topnav">
+    <nav className="ac-sportnav">
       {SPORTS.map((s) => {
         const Icon = ICONS[s.id] || Cricket;
+        const isActive = active === s.id;
         return (
-          <div
+          <button
             key={s.id}
-            className={`sport-icon ${active === s.id ? "sport-icon-active" : ""}`}
+            type="button"
+            className={`ac-sport-pill ${isActive ? "ac-sport-pill-active" : ""}`}
             onClick={() => onChange(s.id)}
-            role="button"
-            tabIndex={0}
           >
-            <Icon size={20} />
+            <Icon size={14} />
             <span>{s.label}</span>
-          </div>
+          </button>
         );
       })}
     </nav>

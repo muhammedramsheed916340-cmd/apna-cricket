@@ -1,8 +1,21 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { logActivity } from "@/lib/admin/helpers";
+import { getLicense, updateLicense, addLog } from "@/lib/license-store";
+import * as fs from "fs";
+import * as path from "path";
+import { getAllLicenses } from "@/lib/license-store";
 
 export const dynamic = "force-dynamic";
+
+function persistLicenses() {
+  try {
+    const allKeys = getAllLicenses().map(k => ({
+      key: k.key, plan: k.plan, status: k.status, deviceFp: k.deviceFp,
+      expiresAt: k.expiresAt, usageCount: k.usageCount, lastUsedAt: k.lastUsedAt, boundAt: k.boundAt,
+    }));
+    fs.writeFileSync(path.join(process.cwd(), "src/lib/licenses.json"), JSON.stringify(allKeys, null, 2));
+    return true;
+  } catch { return false; }
+}
 
 export async function POST(req: Request) {
   try {
@@ -13,10 +26,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: "fail", message: "Key and device ID required" });
     }
 
-    const license = await db.licenseKey.findUnique({ where: { key: key.toUpperCase().trim() } });
+    const license = getLicense(key);
 
     if (!license) {
-      await logActivity("key_verify", `Invalid key: ${key}`, { deviceFp });
+      addLog("key_verify", `Invalid key: ${key}`, { deviceFp });
       return NextResponse.json({ status: "fail", message: "❌ Invalid RMSMT License Key" });
     }
 
@@ -24,33 +37,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: "fail", message: "❌ License suspended. Contact admin." });
     }
 
-    // Check expiry
-    if (license.expiresAt && new Date() > license.expiresAt) {
-      await db.licenseKey.update({ where: { id: license.id }, data: { status: "expired" } });
+    if (license.expiresAt && new Date() > new Date(license.expiresAt)) {
+      updateLicense(key, { status: "expired" });
+      persistLicenses();
       return NextResponse.json({ status: "fail", message: "❌ License expired" });
     }
 
-    // Device binding check
     if (license.deviceFp && license.deviceFp !== deviceFp) {
-      await logActivity("key_verify", `Device mismatch for ${key}`, { deviceFp, licenseKey: key });
+      addLog("key_verify", `Device mismatch for ${key}`, { deviceFp, licenseKey: key });
       return NextResponse.json({ status: "fail", message: "❌ License bound to another device" });
     }
 
-    // Bind device if not bound
     if (!license.deviceFp) {
-      await db.licenseKey.update({
-        where: { id: license.id },
-        data: { deviceFp, boundAt: new Date(), status: "used", usageCount: { increment: 1 }, lastUsedAt: new Date() },
+      updateLicense(key, {
+        deviceFp, boundAt: new Date().toISOString(), status: "used",
+        usageCount: license.usageCount + 1, lastUsedAt: new Date().toISOString(),
       });
-      await logActivity("device_bind", `Device bound to ${key}`, { deviceFp, licenseKey: key });
+      persistLicenses();
+      addLog("device_bind", `Device bound to ${key}`, { deviceFp, licenseKey: key });
     } else {
-      await db.licenseKey.update({
-        where: { id: license.id },
-        data: { usageCount: { increment: 1 }, lastUsedAt: new Date() },
+      updateLicense(key, {
+        usageCount: license.usageCount + 1, lastUsedAt: new Date().toISOString(),
       });
     }
 
-    await logActivity("key_verify", `✅ Verified: ${key}`, { deviceFp, licenseKey: key });
+    addLog("key_verify", `✅ Verified: ${key}`, { deviceFp, licenseKey: key });
 
     return NextResponse.json({
       status: "success",

@@ -245,6 +245,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
           sportIndex: 0,
           type: isEdit ? "edit" : "new",
           userToken,
+          authToken: currentAccount?.authToken || undefined,
         };
 
         // For edit, include the existing team_id

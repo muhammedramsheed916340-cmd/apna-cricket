@@ -5,14 +5,13 @@ import { useRouter } from "next/navigation";
 import { Menu, Home, Loader2 } from "lucide-react";
 import { SideNav } from "@/components/tg/side-nav";
 import { BottomNav } from "@/components/tg/bottom-nav";
+import { AdminTrigger } from "@/components/admin/AdminTrigger";
 
 export default function LoginPage() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    // Auto-login bypass: create session and redirect immediately.
-    // Google OAuth is NOT required for transfers — OTP authToken is enough.
     const params = new URLSearchParams(window.location.search);
     const redirect = params.get("redirect") || "/";
 
@@ -30,19 +29,68 @@ export default function LoginPage() {
   }, [router]);
 
   return (
-    <div className="tg-app">
+    <div className="ac-app">
       <SideNav open={menuOpen} onClose={() => setMenuOpen(false)} />
-      <nav className="tg-header" style={{ justifyContent: "space-between", alignItems: "center" }}>
-        <Menu size={32} className="text-white" style={{ marginLeft: 5, cursor: "pointer" }} onClick={() => setMenuOpen(true)} />
-        <span className="navbar-brand mb-0 text-center">
-          <img className="tg-logo" alt="Apna Cricket logo" src="/apna_cricket_logo.png" />
-        </span>
-        <Home size={28} className="text-white" style={{ marginRight: 8, cursor: "pointer" }} onClick={() => router.push("/")} />
-      </nav>
 
-      <main style={{ padding: "40px 16px", textAlign: "center", color: "#6c757d" }}>
-        <Loader2 size={32} className="animate-spin" style={{ color: "#0066ff", marginBottom: 12 }} />
-        <div style={{ fontSize: 14, fontWeight: 600, color: "#212529" }}>Signing you in…</div>
+      <header className="ac-header">
+        <button
+          type="button"
+          className="ac-icon-btn"
+          onClick={() => setMenuOpen(true)}
+          aria-label="Open menu"
+        >
+          <Menu size={20} />
+        </button>
+        <AdminTrigger>
+          <img
+            className="ac-logo"
+            alt="Apna Cricket logo"
+            src="/apna_cricket_logo.png"
+          />
+        </AdminTrigger>
+        <button
+          type="button"
+          className="ac-icon-btn"
+          onClick={() => router.push("/")}
+          aria-label="Home"
+        >
+          <Home size={18} />
+        </button>
+      </header>
+
+      <main
+        style={{
+          padding: "60px 24px",
+          textAlign: "center",
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: 18,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background:
+              "linear-gradient(135deg, rgba(52,211,153,0.15), rgba(6,182,212,0.15))",
+            border: "1px solid rgba(16,185,129,0.3)",
+            marginBottom: 18,
+          }}
+        >
+          <Loader2 size={30} className="animate-spin" style={{ color: "#34d399" }} />
+        </div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "#e8eefc", marginBottom: 6 }}>
+          Signing you in…
+        </div>
+        <div style={{ fontSize: 13, color: "#8a94b3" }}>
+          Setting up your Apna Cricket session
+        </div>
       </main>
 
       <BottomNav />

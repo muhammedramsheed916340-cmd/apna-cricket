@@ -9,6 +9,7 @@ import {
   Phone,
   Briefcase,
   Shield,
+  X,
 } from "lucide-react";
 
 const MENU = [
@@ -18,8 +19,8 @@ const MENU = [
   { label: "Privacy Policy", path: "/privacy-policy", icon: ChevronRight },
   { label: "Terms And Conditions", path: "/terms", icon: ChevronRight },
   { label: "Disclaimer", path: "/disclaimer", icon: ChevronRight },
-  { label: "contact us", path: "/contactus", icon: Phone },
-  { label: "about us", path: "/aboutus", icon: Briefcase },
+  { label: "Contact us", path: "/contactus", icon: Phone },
+  { label: "About us", path: "/aboutus", icon: Briefcase },
 ];
 
 export function SideNav({
@@ -32,11 +33,7 @@ export function SideNav({
   const router = useRouter();
 
   useEffect(() => {
-    if (open) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    document.body.style.overflow = open ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
@@ -47,94 +44,61 @@ export function SideNav({
     router.push(path);
   };
 
-  const openExternal = (href: string) => {
-    onClose();
-    window.open(href, "_blank", "noopener,noreferrer");
-  };
-
   return (
     <>
-      {open && <div className="tg-overlay" onClick={onClose} />}
-      <aside className={`tg-sidenav ${open ? "open" : ""}`} aria-hidden={!open}>
-        <span className="tg-closebtn" onClick={onClose} role="button">
-          &times;
-        </span>
-        <div className="text-center" style={{ marginBottom: 16, marginTop: 8 }}>
+      {open && <div className="ac-overlay" onClick={onClose} />}
+      <aside
+        className={`ac-sidenav ${open ? "open" : ""}`}
+        aria-hidden={!open}
+        role="dialog"
+        aria-label="Menu"
+      >
+        <div className="ac-sidenav-head">
           <img
-            className="tg-logo"
+            className="ac-sidenav-logo"
             alt="Apna Cricket logo"
             src="/apna_cricket_logo.png"
-            style={{ width: 200 }}
           />
+          <button
+            type="button"
+            className="ac-sidenav-close"
+            onClick={onClose}
+            aria-label="Close menu"
+          >
+            <X size={18} />
+          </button>
         </div>
-        <ul
-          className="list-group"
-          style={{ listStyle: "none", padding: 0, margin: 8 }}
-        >
+
+        <ul className="ac-sidenav-list">
           {MENU.map((m) => {
             const Icon = m.icon;
-            const content = (
-              <>
-                <Icon size={16} style={{ verticalAlign: "middle" }} />
-                <span style={{ marginLeft: 6 }}>{m.label}</span>
-              </>
-            );
-            return m.href ? (
+            return (
               <li
                 key={m.label}
-                className="list-group-item"
-                style={{
-                  padding: "12px 8px",
-                  fontSize: 16,
-                  cursor: "pointer",
-                  borderBottom: "1px solid #eee",
-                }}
-                onClick={() => openExternal(m.href!)}
-              >
-                {content}
-              </li>
-            ) : (
-              <li
-                key={m.label}
-                className="list-group-item"
-                style={{
-                  padding: "12px 8px",
-                  fontSize: 16,
-                  cursor: "pointer",
-                  borderBottom: "1px solid #eee",
-                }}
+                className="ac-sidenav-item"
                 onClick={() => go(m.path!)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    go(m.path!);
+                  }
+                }}
               >
-                {content}
+                <span className="ac-sidenav-icon">
+                  <Icon size={16} />
+                </span>
+                <span>{m.label}</span>
               </li>
             );
           })}
         </ul>
-        <div
-          className="text-center"
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            margin: 8,
-            marginTop: 16,
-          }}
-        >
-          <small style={{ color: "#6c757d" }}>Powered by</small>
-          <a
-            href="#"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ paddingLeft: 0, marginTop: 4 }}
-          >
-            <img alt="Apna Cricket logo" src="/apna_cricket_logo.png" style={{ width: 180 }} />
-          </a>
-          <span style={{ fontSize: 12, color: "#6c757d", marginTop: 4 }}>
-            All Rights Reserved
-          </span>
-          <span style={{ fontSize: 12, color: "#6c757d" }}>
-            ©2025 Apna Cricket
-          </span>
+
+        <div className="ac-sidenav-foot">
+          <small>Powered by</small>
+          <img alt="Apna Cricket logo" src="/apna_cricket_logo.png" />
+          <small>© 2025 Apna Cricket · All Rights Reserved</small>
         </div>
       </aside>
     </>

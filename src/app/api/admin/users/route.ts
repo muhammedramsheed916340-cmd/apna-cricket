@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+// In-memory users (no database needed)
+const users: any[] = [];
+
 export async function GET() {
-  const users = await db.user.findMany({ orderBy: { createdAt: "desc" }, take: 200 });
   return NextResponse.json({ status: "success", users });
 }
 
@@ -12,14 +13,18 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { action, userId } = body;
-    const user = await db.user.findUnique({ where: { id: userId } });
+    const user = users.find((u) => u.id === userId);
     if (!user) return NextResponse.json({ status: "fail", error: "User not found" });
 
-    if (action === "ban") await db.user.update({ where: { id: userId }, data: { banned: true } });
-    else if (action === "unban") await db.user.update({ where: { id: userId }, data: { banned: false } });
-    else if (action === "delete") { await db.user.delete({ where: { id: userId } }); return NextResponse.json({ status: "success", message: "Deleted" }); }
-    else if (action === "reset_license") await db.user.update({ where: { id: userId }, data: { licenseKey: null } });
-    else if (action === "reset_device") await db.user.update({ where: { id: userId }, data: { deviceFp: null } });
+    if (action === "ban") user.banned = true;
+    else if (action === "unban") user.banned = false;
+    else if (action === "delete") {
+      const idx = users.indexOf(user);
+      users.splice(idx, 1);
+      return NextResponse.json({ status: "success", message: "Deleted" });
+    }
+    else if (action === "reset_license") user.licenseKey = null;
+    else if (action === "reset_device") user.deviceFp = null;
 
     return NextResponse.json({ status: "success", message: `${action} done` });
   } catch (e) {

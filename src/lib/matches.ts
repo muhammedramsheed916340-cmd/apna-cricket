@@ -56,48 +56,48 @@ const H = 3600 * 1000;
 
 export const CRICKET_MATCHES: Match[] = [
   {
-    id: "113523",
+    id: "113526",
     series: "Women's T20 World Cup",
     sport: "cricket",
     leftTeam: {
-      name: "NZ",
-      flag: "https://d13ir53smqqeyp.cloudfront.net/flags/cr-flags/NZ-W-CR1@2x.png",
+      name: "ENG",
+      flag: "https://d13ir53smqqeyp.cloudfront.net/flags/cr-flags/EN-W-CR1@2x.png",
     },
     rightTeam: {
-      name: "SCO",
-      flag: "https://d13ir53smqqeyp.cloudfront.net/flags/cr-flags/SCO-CR1@2x.png",
+      name: "WI",
+      flag: "https://d13ir53smqqeyp.cloudfront.net/flags/cr-flags/WI-W-CR1@2x.png",
     },
     badges: ["Mega GL", "SL", "H2H"],
-    targetTime: Date.now() + 15 * H,
+    targetTime: 0,
   },
   {
-    id: "113524",
+    id: "113527",
     series: "Women's T20 World Cup",
     sport: "cricket",
     leftTeam: {
-      name: "SL",
-      flag: "https://d13ir53smqqeyp.cloudfront.net/flags/cr-flags/SL-W-CR1@2x.png",
+      name: "IND",
+      flag: "https://d13ir53smqqeyp.cloudfront.net/flags/cr-flags/IN-W-CR1@2x.png",
     },
     rightTeam: {
-      name: "IRE",
-      flag: "https://d13ir53smqqeyp.cloudfront.net/flags/cr-flags/IRE-CR1@2x.png",
+      name: "BAN",
+      flag: "https://d13ir53smqqeyp.cloudfront.net/flags/cr-flags/BD-W-CR1@2x.png",
     },
     badges: ["Mega GL", "SL", "H2H"],
-    targetTime: Date.now() + 19 * H,
+    targetTime: 0,
   },
   {
-    id: "113525",
+    id: "113528",
     series: "Women's T20 World Cup",
     sport: "cricket",
     leftTeam: {
-      name: "AUS",
-      flag: "https://d13ir53smqqeyp.cloudfront.net/flags/cr-flags/AU-W-CR1@2x.png",
+      name: "SA",
+      flag: "https://d13ir53smqqeyp.cloudfront.net/flags/cr-flags/SA-W-CR1@2x.png",
     },
     rightTeam: {
-      name: "PAK",
-      flag: "https://d13ir53smqqeyp.cloudfront.net/flags/cr-flags/PK-W-CR1@2x.png",
+      name: "NED",
+      flag: "https://d13ir53smqqeyp.cloudfront.net/flags/cr-flags/NL-CR1@2x.png",
     },
     badges: ["Mega GL", "SL", "H2H"],
-    targetTime: Date.now() + 23 * H,
+    targetTime: 0,
   },
 ];

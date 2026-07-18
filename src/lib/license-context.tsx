@@ -35,12 +35,50 @@ export function LicenseProvider({ children }: { children: ReactNode }) {
   const [licenseKey, setLicenseKey] = useState<string | null>(null);
   const [plan, setPlan] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const checkExisting = async () => {
     try {
       const stored = localStorage.getItem("licenseKey");
+      const locallyVerified = localStorage.getItem("licenseVerified") === "true";
+
       if (!stored) { setLoading(false); return; }
 
+      // If already verified locally, KEEP verified — NEVER auto-logout on reload
+      if (locallyVerified) {
+        setVerified(true);
+        setLicenseKey(stored);
+        setLoading(false);
+
+        // Background server check (non-blocking, won't logout on failure)
+        const deviceId = getDeviceId();
+        fetch("/api/license/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: stored, deviceFp: deviceId }),
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.status === "success") {
+              setPlan(data.plan);
+            } else {
+              const msg = (data.message || "").toLowerCase();
+              const isHardFail = msg.includes("invalid") || msg.includes("expired") || msg.includes("suspended");
+              if (isHardFail) {
+                localStorage.removeItem("licenseVerified");
+                setVerified(false);
+              }
+            }
+          })
+          .catch(() => {});
+        return;
+      }
+
+      // First-time verify (not yet verified locally)
       const deviceId = getDeviceId();
       const res = await fetch("/api/license/verify", {
         method: "POST",
@@ -54,11 +92,9 @@ export function LicenseProvider({ children }: { children: ReactNode }) {
         setPlan(data.plan);
         localStorage.setItem("licenseVerified", "true");
       } else {
-        localStorage.removeItem("licenseVerified");
         setVerified(false);
       }
     } catch {
-      // Offline — check local only
       if (localStorage.getItem("licenseVerified") === "true") {
         setVerified(true);
         setLicenseKey(localStorage.getItem("licenseKey"));
@@ -69,6 +105,7 @@ export function LicenseProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    setMounted(true);
     checkExisting();
   }, []);
 
@@ -94,6 +131,12 @@ export function LicenseProvider({ children }: { children: ReactNode }) {
       return { success: false, message: "Network error. Try again." };
     }
   };
+
+  // During SSR, render children directly (no loading state, no gate)
+  // License check only runs on client after mount
+  if (!mounted) {
+    return <>{children}</>;
+  }
 
   return (
     <LicenseContext.Provider value={{ verified, licenseKey, plan, loading, verify, checkExisting }}>

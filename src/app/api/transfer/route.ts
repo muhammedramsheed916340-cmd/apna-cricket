@@ -181,7 +181,7 @@ export async function POST(req: Request) {
     // Bearer token — OPTIONAL (bypass mode works without it)
     const bearerToken = userToken || "";
 
-    // Build the BACKEND payload — EXACT match to original source (NO type, NO mobileNumber)
+    // Build the BACKEND payload — matching original source exactly
     const preparedToken = String(authToken);
     const payload: Record<string, unknown> = {
       matchId: matchId,
@@ -198,11 +198,16 @@ export async function POST(req: Request) {
       payload.id = id;
     }
 
-    // My11Circle-specific fields
+    // My11Circle-specific fields (String conversion matching original)
     if (app === "my11circle") {
-      if (my11circleChallenge) payload.my11circleChallenge = my11circleChallenge;
-      if (my11circleUserId) payload.my11circleUserId = my11circleUserId;
-      if (my11circleMobile) payload.my11circleMobile = my11circleMobile;
+      if (my11circleChallenge) payload.my11circleChallenge = String(my11circleChallenge);
+      if (my11circleUserId) payload.my11circleUserId = String(my11circleUserId);
+      if (my11circleMobile) payload.my11circleMobile = String(my11circleMobile);
+    }
+
+    // mobileNumber for all platforms (matching original)
+    if (mobileNumber) {
+      payload.mobileNumber = mobileNumber;
     }
 
     if (app === "vision11" && mobileNumber) {
@@ -221,11 +226,11 @@ export async function POST(req: Request) {
 
     for (const endpointUrl of endpointChain) {
       try {
-        const headers: Record<string, string> = { "Content-Type": "application/json" };
-        // Only include Authorization if we have a valid Bearer token
-        if (bearerToken && bearerToken.length >= 20) {
-          headers["Authorization"] = `Bearer ${bearerToken}`;
-        }
+        // ALWAYS send Authorization header (matching original source)
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${bearerToken}`,
+        };
 
         const res = await fetch(endpointUrl, {
           method: "POST",

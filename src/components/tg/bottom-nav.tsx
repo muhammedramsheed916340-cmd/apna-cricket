@@ -7,31 +7,31 @@ const ITEMS = [
   { id: "home", label: "Home", icon: Home, path: "/" },
   { id: "mymatches", label: "My matches", icon: Clock, path: "/mymatches" },
   { id: "research", label: "Research", icon: Search, path: "/research" },
-  { id: "user", label: "User", icon: User, path: "/profile" },
+  { id: "user", label: "Profile", icon: User, path: "/profile" },
 ];
 
 export function BottomNav({ active = "home" }: { active?: string }) {
   const router = useRouter();
 
   return (
-    <div className="tg-footer">
+    <nav className="ac-bottomnav" aria-label="Primary">
       {ITEMS.map((it) => {
         const Icon = it.icon;
         const isActive = active === it.id;
-        // Always authenticated (auto-login bypass) — go straight to page.
         return (
-          <div
+          <button
             key={it.id}
-            className={`sport-icon ${isActive ? "sport-icon-active" : ""}`}
+            type="button"
+            className={`ac-nav-item ${isActive ? "ac-nav-item-active" : ""}`}
             onClick={() => router.push(it.path)}
-            role="button"
-            tabIndex={0}
+            aria-label={it.label}
+            aria-current={isActive ? "page" : undefined}
           >
             <Icon size={20} />
             <span>{it.label}</span>
-          </div>
+          </button>
         );
       })}
-    </div>
+    </nav>
   );
 }

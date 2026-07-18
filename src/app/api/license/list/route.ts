@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getAllLicenses } from "@/lib/license-store";
 
 export const dynamic = "force-dynamic";
 
@@ -8,15 +8,9 @@ export async function GET(req: Request) {
   const status = url.searchParams.get("status");
   const plan = url.searchParams.get("plan");
 
-  const where: any = {};
-  if (status) where.status = status;
-  if (plan) where.plan = plan;
-
-  const keys = await db.licenseKey.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-    take: 500,
-  });
+  let keys = getAllLicenses();
+  if (status) keys = keys.filter((k) => k.status === status);
+  if (plan) keys = keys.filter((k) => k.plan === plan);
 
   return NextResponse.json({ status: "success", keys, count: keys.length });
 }

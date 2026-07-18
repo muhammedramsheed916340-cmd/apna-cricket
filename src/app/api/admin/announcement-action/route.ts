@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { verifyAdminPassword } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
-// Body: { action: "toggle"|"delete", id: string, adminPassword: string }
+// In-memory announcements (no database)
+const announcements: any[] = [];
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -15,59 +16,20 @@ export async function POST(req: Request) {
     };
 
     if (!(await verifyAdminPassword(adminPassword))) {
-      return NextResponse.json(
-        { status: "fail", message: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ status: "fail", message: "Unauthorized" }, { status: 401 });
     }
 
-    if (!id || !action) {
-      return NextResponse.json(
-        { status: "fail", message: "id and action are required" },
-        { status: 400 }
-      );
+    const ann = announcements.find((a) => a.id === id);
+    if (!ann) return NextResponse.json({ status: "fail", message: "Not found" });
+
+    if (action === "toggle") ann.active = !ann.active;
+    else if (action === "delete") {
+      const idx = announcements.indexOf(ann);
+      announcements.splice(idx, 1);
     }
 
-    const ann = await db.announcement.findUnique({ where: { id } });
-    if (!ann) {
-      return NextResponse.json(
-        { status: "fail", message: "Announcement not found" },
-        { status: 404 }
-      );
-    }
-
-    if (action === "toggle") {
-      const updated = await db.announcement.update({
-        where: { id },
-        data: { active: !ann.active },
-      });
-      await db.activityLog.create({
-        data: {
-          type: "admin_action",
-          message: `Admin ${updated.active ? "enabled" : "disabled"} announcement "${ann.title}"`,
-        },
-      });
-      return NextResponse.json({ status: "success", announcement: updated });
-    }
-    if (action === "delete") {
-      await db.announcement.delete({ where: { id } });
-      await db.activityLog.create({
-        data: {
-          type: "admin_action",
-          message: `Admin deleted announcement "${ann.title}"`,
-        },
-      });
-      return NextResponse.json({ status: "success", message: "Deleted" });
-    }
-
-    return NextResponse.json(
-      { status: "fail", message: "Unknown action" },
-      { status: 400 }
-    );
+    return NextResponse.json({ status: "success", message: `${action} done` });
   } catch (e) {
-    return NextResponse.json(
-      { status: "fail", message: (e as Error).message },
-      { status: 500 }
-    );
+    return NextResponse.json({ status: "fail", error: (e as Error).message }, { status: 500 });
   }
 }

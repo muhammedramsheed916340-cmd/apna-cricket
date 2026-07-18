@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { ADMIN_PASSWORD, logActivity } from "@/lib/admin/helpers";
+import { ADMIN_PASSWORD, addLog } from "@/lib/admin/helpers";
 
 export const dynamic = "force-dynamic";
 
+// In-memory announcements (not persisted across cold starts)
+const announcements: any[] = [];
+
 export async function GET() {
-  const announcements = await db.announcement.findMany({ where: { active: true }, orderBy: { createdAt: "desc" } });
-  return NextResponse.json({ status: "success", announcements });
+  return NextResponse.json({ status: "success", announcements: announcements.filter((a) => a.active) });
 }
 
 export async function POST(req: Request) {
@@ -15,8 +16,9 @@ export async function POST(req: Request) {
     const { title, message, target, adminPassword } = body;
     if (adminPassword !== ADMIN_PASSWORD) return NextResponse.json({ status: "fail", error: "Unauthorized" }, { status: 401 });
 
-    const ann = await db.announcement.create({ data: { title, message, target: target || "all", active: true } });
-    await logActivity("admin_action", `Announcement: ${title}`, {});
+    const ann = { id: Date.now().toString(), title, message, target: target || "all", active: true, createdAt: new Date().toISOString() };
+    announcements.push(ann);
+    addLog("admin_action", `Announcement: ${title}`, {});
     return NextResponse.json({ status: "success", announcement: ann });
   } catch (e) {
     return NextResponse.json({ status: "fail", error: (e as Error).message }, { status: 500 });

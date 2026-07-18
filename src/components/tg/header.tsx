@@ -7,29 +7,32 @@ import { AdminTrigger } from "@/components/admin/AdminTrigger";
 export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const router = useRouter();
   return (
-    <nav
-      className="tg-header"
-      style={{ justifyContent: "space-between", alignItems: "center" }}
-    >
-      <Menu
-        size={32}
-        className="text-white"
-        style={{ marginLeft: 5, cursor: "pointer" }}
+    <header className="ac-header">
+      <button
+        type="button"
+        className="ac-icon-btn"
         onClick={onMenuClick}
         aria-label="Open menu"
-      />
-      <span className="navbar-brand mb-0 text-center">
-        <AdminTrigger>
-          <img className="tg-logo" alt="Apna Cricket logo" src="/apna_cricket_logo.png" />
-        </AdminTrigger>
-      </span>
-      <RefreshCw
-        size={32}
-        className="text-white"
-        style={{ marginRight: 5, cursor: "pointer" }}
+      >
+        <Menu size={20} />
+      </button>
+
+      <AdminTrigger>
+        <img
+          className="ac-logo"
+          alt="Apna Cricket logo"
+          src="/apna_cricket_logo.png"
+        />
+      </AdminTrigger>
+
+      <button
+        type="button"
+        className="ac-icon-btn"
         onClick={() => window.location.reload()}
         aria-label="Refresh"
-      />
-    </nav>
+      >
+        <RefreshCw size={18} />
+      </button>
+    </header>
   );
 }
