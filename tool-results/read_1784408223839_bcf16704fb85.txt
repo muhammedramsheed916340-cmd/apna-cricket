@@ -1,0 +1,666 @@
+     1→"use client";
+     2→
+     3→import { useEffect, useState } from "react";
+     4→import { useRouter } from "next/navigation";
+     5→import {
+     6→  RefreshCw,
+     7→  Send,
+     8→  CheckCircle2,
+     9→  Loader2,
+    10→  ChevronRight,
+    11→  Link2,
+    12→  Hash,
+    13→  Layers,
+    14→  Zap,
+    15→  Trophy,
+    16→  AlertCircle,
+    17→  Plus,
+    18→  Edit3,
+    19→} from "lucide-react";
+    20→import { MatchShell } from "@/components/tg/match-shell";
+    21→import { useToast } from "@/hooks/use-toast";
+    22→import { FANTASY_PLATFORMS } from "@/lib/fantasy";
+    23→import { getTeams } from "@/lib/teams-storage";
+    24→
+    25→const PLATFORM_STYLE: Record<string, { bg: string; color: string; abbr: string }> = {
+    26→  dream11: { bg: "#d13239", color: "#fff", abbr: "D11" },
+    27→  my11circle: { bg: "#1a936f", color: "#fff", abbr: "M11" },
+    28→  jumbo: { bg: "#f6ae2d", color: "#3d2817", abbr: "JB" },
+    29→};
+    30→
+    31→interface Account {
+    32→  slug: string;
+    33→  name: string;
+    34→  mobileNumber: string;
+    35→  authToken: string | null;
+    36→  linked: boolean;
+    37→  limit?: number;
+    38→  my11circleChallenge?: string | null;
+    39→  my11circleUserId?: string | null;
+    40→}
+    41→
+    42→interface ExistingTeam {
+    43→  team_id: string;
+    44→  captain: number;
+    45→  vice_captain: number;
+    46→  player_list: number[];
+    47→}
+    48→
+    49→export default function TransferPage({ params }: { params: Promise<{ id: string }> }) {
+    50→  const router = useRouter();
+    51→  const { toast } = useToast();
+    52→  const [matchId, setMatchId] = useState("");
+    53→  const [accounts, setAccounts] = useState<Account[]>([]);
+    54→  const [selectedPlatform, setSelectedPlatform] = useState<string>("dream11");
+    55→  const [hash, setHash] = useState<string | null>(null);
+    56→  const [transferring, setTransferring] = useState(false);
+    57→  const [progressCurrent, setProgressCurrent] = useState(0);
+    58→  const [progressTotal, setProgressTotal] = useState(0);
+    59→  const [progressTeam, setProgressTeam] = useState<string>("");
+    60→  const [transferred, setTransferred] = useState<any[]>([]);
+    61→  const [failedTeams, setFailedTeams] = useState<any[]>([]);
+    62→  const [bulkResult, setBulkResult] = useState<any>(null);
+    63→  const [totalTeams, setTotalTeams] = useState(0);
+    64→  const [loadingAccounts, setLoadingAccounts] = useState(true);
+    65→  const [existingTeams, setExistingTeams] = useState<ExistingTeam[]>([]);
+    66→  const [fetchingExisting, setFetchingExisting] = useState(false);
+    67→  // Transfer mode: "all" (edit + add), "newOnly" (add only), "custom" (X edit + Y add)
+    68→  const [transferMode, setTransferMode] = useState<"all" | "newOnly" | "custom">("all");
+    69→  const [customReplaceCount, setCustomReplaceCount] = useState(0);
+    70→  const [customAddCount, setCustomAddCount] = useState(0);
+    71→
+    72→  useEffect(() => {
+    73→    params.then((p) => setMatchId(p.id));
+    74→  }, [params]);
+    75→
+    76→  useEffect(() => {
+    77→    fetch("/api/fantasy/accounts", { cache: "no-store" })
+    78→      .then((r) => r.json())
+    79→      .then((d) => {
+    80→        setAccounts(d?.accounts || []);
+    81→        if (d?.accounts?.length && !d.accounts.find((a: Account) => a.slug === selectedPlatform)) {
+    82→          setSelectedPlatform(d.accounts[0].slug);
+    83→        }
+    84→      })
+    85→      .finally(() => setLoadingAccounts(false));
+    86→  }, [selectedPlatform]);
+    87→
+    88→  useEffect(() => {
+    89→    if (!matchId) return;
+    90→    const stored = getTeams(matchId);
+    91→    setTotalTeams(stored?.teams.length || 0);
+    92→  }, [matchId]);
+    93→
+    94→  const linkedAccounts = accounts.filter((a) => a.linked);
+    95→  const currentAccount = linkedAccounts.find((a) => a.slug === selectedPlatform);
+    96→  const currentPlatform = FANTASY_PLATFORMS.find((p) => p.slug === selectedPlatform)!;
+    97→  // maxTeams per platform — EXACT match to original TeamTransferScreen.tsx
+    98→  const limit = selectedPlatform === "dream11" ? 11 : 40;
+    99→  const presentTeamCount = existingTeams.length;
+   100→  const newSlots = Math.max(0, limit - presentTeamCount);
+   101→
+   102→  // Fetch existing teams from the fantasy platform
+   103→  const fetchExisting = async () => {
+   104→    if (!matchId || !currentAccount) return;
+   105→    setFetchingExisting(true);
+   106→    try {
+   107→      let userToken = "";
+   108→      try { userToken = localStorage.getItem("user_token") || ""; } catch {}
+   109→      const res = await fetch("/api/fantasy/list-of-teams", {
+   110→        method: "POST",
+   111→        headers: { "Content-Type": "application/json" },
+   112→        body: JSON.stringify({ fantasyApp: selectedPlatform, matchId, userToken }),
+   113→      });
+   114→      const data = await res.json();
+   115→      if (data?.status === "success" || Array.isArray(data?.teams_list)) {
+   116→        setExistingTeams(data.teams_list || []);
+   117→        toast({
+   118→          title: "Teams fetched",
+   119→          description: `${(data.teams_list || []).length} existing teams on ${currentPlatform.name}`,
+   120→        });
+   121→      } else {
+   122→        setExistingTeams([]);
+   123→        toast({
+   124→          title: "No existing teams",
+   125→          description: data?.message || `No teams found on ${currentPlatform.name}`,
+   126→        });
+   127→      }
+   128→    } finally {
+   129→      setFetchingExisting(false);
+   130→    }
+   131→  };
+   132→
+   133→  useEffect(() => {
+   134→    if (matchId && currentAccount) {
+   135→      fetchExisting();
+   136→    }
+   137→  }, [matchId, selectedPlatform, currentAccount?.linked]);
+   138→
+   139→  const doTransfer = async (mode: "all" | "newOnly" | "custom" | "replace", extra?: any) => {
+   140→    if (!currentAccount) {
+   141→      toast({
+   142→        title: "Account not linked",
+   143→        description: `Please link your ${currentPlatform.name} account via OTP first`,
+   144→        variant: "destructive",
+   145→      });
+   146→      return;
+   147→    }
+   148→    const stored = getTeams(matchId);
+   149→    const storedTeams = stored?.teams || [];
+   150→    if (storedTeams.length === 0) {
+   151→      toast({
+   152→        title: "No teams",
+   153→        description: "Generate teams first",
+   154→        variant: "destructive",
+   155→      });
+   156→      return;
+   157→    }
+   158→
+   159→    setTransferring(true);
+   160→    setTransferred([]);
+   161→    setFailedTeams([]);
+   162→    setBulkResult(null);
+   163→    setProgressCurrent(0);
+   164→    setProgressTotal(storedTeams.length);
+   165→
+   166→    // Fetch existing teams FIRST to determine edit vs add
+   167→    let existingTeamIds: string[] = [];
+   168→    try {
+   169→      let userToken = "";
+   170→      try { userToken = localStorage.getItem("user_token") || ""; } catch {}
+   171→      const listRes = await fetch("/api/fantasy/list-of-teams", {
+   172→        method: "POST",
+   173→        headers: { "Content-Type": "application/json" },
+   174→        body: JSON.stringify({ fantasyApp: selectedPlatform, matchId, userToken }),
+   175→      });
+   176→      const listData = await listRes.json();
+   177→      if (listData?.teams_list) {
+   178→        existingTeamIds = listData.teams_list.map((t: any) => t.team_id);
+   179→      }
+   180→    } catch {}
+   181→
+   182→    const presentCount = existingTeamIds.length;
+   183→    const maxTeams = selectedPlatform === "dream11" ? 11 : 40;
+   184→    const newSlots = Math.max(0, maxTeams - presentCount);
+   185→
+   186→    // Determine how many to add vs edit
+   187→    let teamsToAdd: number;
+   188→    let teamsToEdit: number;
+   189→    if (mode === "newOnly") {
+   190→      teamsToAdd = Math.min(storedTeams.length, newSlots);
+   191→      teamsToEdit = 0;
+   192→    } else if (mode === "custom") {
+   193→      teamsToEdit = Math.min(customReplaceCount, presentCount, storedTeams.length);
+   194→      teamsToAdd = Math.min(customAddCount, newSlots, storedTeams.length - teamsToEdit);
+   195→    } else {
+   196→      // mode === "all": add new FIRST, then edit
+   197→      teamsToAdd = Math.min(storedTeams.length, newSlots);
+   198→      teamsToEdit = Math.min(storedTeams.length - teamsToAdd, presentCount);
+   199→    }
+   200→
+   201→    const totalToProcess = teamsToAdd + teamsToEdit;
+   202→    const allTransferred: any[] = [];
+   203→    const allFailed: any[] = [];
+   204→    let stopped = false;
+   205→
+   206→    // Process teams ONE BY ONE
+   207→    for (let i = 0; i < totalToProcess; i++) {
+   208→      if (stopped) break;
+   209→      const team = storedTeams[i];
+   210→      const isEdit = i >= teamsToAdd; // first teamsToAdd are NEW, rest are EDIT
+   211→      setProgressCurrent(i + 1);
+   212→      setProgressTeam(`Team #${team.team_number} (${i + 1}/${totalToProcess}) ${isEdit ? "REPLACE" : "NEW"}`);
+   213→
+   214→      try {
+   215→        let userToken = "";
+   216→        try { userToken = localStorage.getItem("user_token") || ""; } catch {}
+   217→
+   218→        // Get platform-specific fantasy IDs
+   219→        const getPlatformId = (p: any): number => {
+   220→          if (typeof p === "number") return p;
+   221→          if (p?.fantasyIdList) {
+   222→            const found = p.fantasyIdList.find((f: any) => f.name === selectedPlatform);
+   223→            if (found?.id) return found.id;
+   224→          }
+   225→          return p?.fantasyId || 0;
+   226→        };
+   227→
+   228→        const playerIds = (team.players || []).map((p: any) => getPlatformId(p)).filter((n: number) => n > 0);
+   229→        const captainId = getPlatformId(team.captain) || playerIds[0] || 0;
+   230→        const viceCaptainId = getPlatformId(team.vicecaptain) || playerIds[1] || 0;
+   231→
+   232→        if (playerIds.length < 11 || !captainId || !viceCaptainId) {
+   233→          allFailed.push({ team_number: team.team_number, error: `Invalid team data (${playerIds.length} players)` });
+   234→          setFailedTeams([...allFailed]);
+   235→          continue;
+   236→        }
+   237→
+   238→        // Build the EXACT payload the transfer API expects
+   239→        const transferPayload: Record<string, unknown> = {
+   240→          matchId,
+   241→          fantasyApp: selectedPlatform,
+   242→          captain: captainId,
+   243→          vice_captain: viceCaptainId,
+   244→          players: playerIds,
+   245→          sportIndex: 0,
+   246→          type: isEdit ? "edit" : "new",
+   247→          userToken,
+   248→          authToken: currentAccount?.authToken || undefined,
+   249→        };
+   250→
+   251→        // For edit, include the existing team_id
+   252→        if (isEdit) {
+   253→          const editIndex = i - teamsToAdd;
+   254→          if (existingTeamIds[editIndex]) {
+   255→            transferPayload.id = existingTeamIds[editIndex];
+   256→          }
+   257→        }
+   258→
+   259→        // My11Circle fields from account
+   260→        if (selectedPlatform === "my11circle" && currentAccount) {
+   261→          if (currentAccount.my11circleChallenge) transferPayload.my11circleChallenge = currentAccount.my11circleChallenge;
+   262→          if (currentAccount.my11circleUserId) transferPayload.my11circleUserId = currentAccount.my11circleUserId;
+   263→          if (currentAccount.mobileNumber) transferPayload.my11circleMobile = currentAccount.mobileNumber;
+   264→        }
+   265→        if (currentAccount?.mobileNumber) transferPayload.mobileNumber = currentAccount.mobileNumber;
+   266→
+   267→        const res = await fetch("/api/transfer", {
+   268→          method: "POST",
+   269→          headers: { "Content-Type": "application/json" },
+   270→          body: JSON.stringify(transferPayload),
+   271→        });
+   272→        const data = await res.json();
+   273→
+   274→        if (data?.status === "success") {
+   275→          allTransferred.push({
+   276→            team_number: team.team_number,
+   277→            status: "transferred",
+   278→            operation: isEdit ? "edit" : "add",
+   279→          });
+   280→          setTransferred([...allTransferred]);
+   281→        } else {
+   282→          if (data?.code === "TOKEN_EXPIRED" || data?.code === "NO_AUTH_TOKEN") {
+   283→            // Don't redirect — just record the error and continue
+   284→            allFailed.push({ team_number: team.team_number, error: data?.error || "Session expired. Re-link via OTP." });
+   285→            setFailedTeams([...allFailed]);
+   286→            // Stop transferring remaining teams (they'll all fail too)
+   287→            stopped = true;
+   288→            break;
+   289→          }
+   290→          allFailed.push({ team_number: team.team_number, error: data?.error || data?.message || "Transfer failed" });
+   291→          setFailedTeams([...allFailed]);
+   292→
+   293→          // Rate limit → wait and retry once
+   294→          if (data?.code === "RATE_LIMITED" && i < totalToProcess - 1) {
+   295→            await new Promise((r) => setTimeout(r, 4000));
+   296→          }
+   297→        }
+   298→      } catch (e) {
+   299→        allFailed.push({ team_number: team.team_number, error: (e as Error).message });
+   300→        setFailedTeams([...allFailed]);
+   301→      }
+   302→
+   303→      // Platform-specific delay between teams
+   304→      if (i < totalToProcess - 1) {
+   305→        const delay = selectedPlatform === "my11circle" ? 3000 : selectedPlatform === "jumbo" ? 1000 : 300;
+   306→        await new Promise((r) => setTimeout(r, delay));
+   307→      }
+   308→    }
+   309→
+   310→    setProgressTeam("");
+   311→    setTransferring(false);
+   312→
+   313→    if (allTransferred.length > 0) {
+   314→      setBulkResult({
+   315→        message: `${allTransferred.length}/${storedTeams.length} teams transferred to ${currentPlatform.name}`,
+   316→        existingTeamsCount: presentTeamCount,
+   317→        newSlots,
+   318→        teamsToEdit: allTransferred.filter((t) => t.operation === "edit").length,
+   319→        teamsToAdd: allTransferred.filter((t) => t.operation === "add").length,
+   320→      });
+   321→      toast({
+   322→        title: "Transfer complete",
+   323→        description: `${allTransferred.length}/${storedTeams.length} teams transferred to ${currentPlatform.name}`,
+   324→      });
+   325→      fetchExisting();
+   326→    } else if (!stopped) {
+   327→      toast({
+   328→        title: "Transfer failed",
+   329→        description: `${allFailed.length} teams failed. Check errors below.`,
+   330→        variant: "destructive",
+   331→      });
+   332→    }
+   333→  };
+   334→
+   335→  return (
+   336→    <MatchShell matchId={matchId || "nz-sco-wt20"} active="transfer">
+   337→      <div style={{ background: "#fff", borderRadius: 8, padding: 14, marginBottom: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+   338→        <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0066ff", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+   339→          <Send size={16} /> Transfer Arena
+   340→        </h3>
+   341→        <p style={{ fontSize: 12, color: "#6c757d", marginBottom: 12 }}>
+   342→          Transfer teams to {currentPlatform.name}. Existing teams can be replaced; new teams are added to empty slots.
+   343→        </p>
+   344→
+   345→        {/* Platform selector */}
+   346→        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Fantasy Platform</div>
+   347→        <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+   348→          {FANTASY_PLATFORMS.map((p) => {
+   349→            const acc = linkedAccounts.find((a) => a.slug === p.slug);
+   350→            const isActive = selectedPlatform === p.slug;
+   351→            const style = PLATFORM_STYLE[p.slug];
+   352→            return (
+   353→              <button
+   354→                key={p.slug}
+   355→                onClick={() => acc && setSelectedPlatform(p.slug)}
+   356→                style={{
+   357→                  flex: 1,
+   358→                  padding: "10px 4px",
+   359→                  border: isActive ? `2px solid ${style.bg}` : "1px solid #ddd",
+   360→                  background: isActive ? `${style.bg}15` : "#fff",
+   361→                  borderRadius: 8,
+   362→                  cursor: acc ? "pointer" : "not-allowed",
+   363→                  opacity: acc ? 1 : 0.5,
+   364→                  textAlign: "center",
+   365→                  position: "relative",
+   366→                }}
+   367→              >
+   368→                <div style={{ width: 32, height: 32, borderRadius: 6, background: style.bg, color: style.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, margin: "0 auto 4px" }}>
+   369→                  {style.abbr}
+   370→                </div>
+   371→                <div style={{ fontSize: 10, fontWeight: 600, color: isActive ? style.bg : "#6c757d" }}>{p.name}</div>
+   372→                {acc && <CheckCircle2 size={12} color="#28a745" style={{ position: "absolute", top: 4, right: 4 }} />}
+   373→              </button>
+   374→            );
+   375→          })}
+   376→        </div>
+   377→
+   378→        {/* Unlinked warning */}
+   379→        {!currentAccount && !loadingAccounts && (
+   380→          <div style={{ background: "#fff3cd", border: "1px solid #ffc107", borderRadius: 8, padding: 12, marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
+   381→            <AlertCircle size={18} color="#856404" />
+   382→            <div style={{ flex: 1, fontSize: 12, color: "#856404" }}>
+   383→              <strong>{currentPlatform.name} not linked.</strong> Link via OTP to transfer.
+   384→            </div>
+   385→            <button onClick={() => router.push("/fantasy")} className="btn-tg-primary" style={{ padding: "6px 10px", border: "none", borderRadius: 4, color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+   386→              <Link2 size={12} /> Link
+   387→            </button>
+   388→          </div>
+   389→        )}
+   390→
+   391→        {/* Account info */}
+   392→        {currentAccount && (
+   393→          <div style={{ background: "#d4edda", borderRadius: 6, padding: 10, marginBottom: 12, fontSize: 12, color: "#155724", display: "flex", alignItems: "center", gap: 8 }}>
+   394→            <CheckCircle2 size={14} />
+   395→            <span>Linked: <strong>+91 {currentAccount.mobileNumber}</strong> · Limit {limit} teams</span>
+   396→          </div>
+   397→        )}
+   398→
+   399→        {/* Existing teams status */}
+   400→        {currentAccount && (
+   401→          <div style={{ background: "#f8f9fa", borderRadius: 6, padding: 10, marginBottom: 12 }}>
+   402→            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+   403→              <span style={{ fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+   404→                <Layers size={12} /> Existing Teams on {currentPlatform.name}
+   405→              </span>
+   406→              <button onClick={fetchExisting} disabled={fetchingExisting} style={{ padding: "4px 8px", border: "1px solid #0066ff", background: "#fff", color: "#0066ff", borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: fetchingExisting ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+   407→                {fetchingExisting ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+   408→                Refresh
+   409→              </button>
+   410→            </div>
+   411→            <div style={{ display: "flex", gap: 8 }}>
+   412→              <div style={{ flex: 1, background: "#fff", borderRadius: 4, padding: 6, textAlign: "center", border: "1px solid #eee" }}>
+   413→                <div style={{ fontSize: 18, fontWeight: 800, color: "#dc3545" }}>{presentTeamCount}</div>
+   414→                <div style={{ fontSize: 9, color: "#6c757d" }}>Present (replaceable)</div>
+   415→              </div>
+   416→              <div style={{ flex: 1, background: "#fff", borderRadius: 4, padding: 6, textAlign: "center", border: "1px solid #eee" }}>
+   417→                <div style={{ fontSize: 18, fontWeight: 800, color: "#28a745" }}>{newSlots}</div>
+   418→                <div style={{ fontSize: 9, color: "#6c757d" }}>New slots (add)</div>
+   419→              </div>
+   420→              <div style={{ flex: 1, background: "#fff", borderRadius: 4, padding: 6, textAlign: "center", border: "1px solid #eee" }}>
+   421→                <div style={{ fontSize: 18, fontWeight: 800, color: "#0066ff" }}>{totalTeams}</div>
+   422→                <div style={{ fontSize: 9, color: "#6c757d" }}>Generated</div>
+   423→              </div>
+   424→            </div>
+   425→          </div>
+   426→        )}
+   427→
+   428→        {/* No generated teams warning */}
+   429→        {totalTeams === 0 && !loadingAccounts && (
+   430→          <div style={{ background: "#fff3cd", border: "1px solid #ffc107", borderRadius: 8, padding: 12, marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
+   431→            <AlertCircle size={18} color="#856404" />
+   432→            <div style={{ flex: 1, fontSize: 12, color: "#856404" }}>
+   433→              <strong>No generated teams.</strong> Generate teams first.
+   434→            </div>
+   435→            <button onClick={() => router.push(`/match/${matchId}/smart`)} className="btn-tg-primary" style={{ padding: "6px 10px", border: "none", borderRadius: 4, color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+   436→              <Zap size={12} /> Generate
+   437→            </button>
+   438→          </div>
+   439→        )}
+   440→
+   441→        {/* Transfer modes (3 modes like original) */}
+   442→        {currentAccount && totalTeams > 0 && (
+   443→          <div style={{ marginBottom: 12 }}>
+   444→            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Transfer Mode</div>
+   445→            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+   446→              {/* Mode 1: All (edit existing + add new) */}
+   447→              <button
+   448→                onClick={() => setTransferMode("all")}
+   449→                style={{
+   450→                  padding: 10,
+   451→                  border: transferMode === "all" ? "2px solid #0066ff" : "1px solid #ddd",
+   452→                  background: transferMode === "all" ? "#f5f0fa" : "#fff",
+   453→                  borderRadius: 6,
+   454→                  cursor: "pointer",
+   455→                  textAlign: "left",
+   456→                  display: "flex",
+   457→                  alignItems: "center",
+   458→                  gap: 8,
+   459→                }}
+   460→              >
+   461→                <Edit3 size={16} color="#0066ff" />
+   462→                <div style={{ flex: 1 }}>
+   463→                  <div style={{ fontSize: 12, fontWeight: 700, color: "#212529" }}>Mode 1: Add New + Replace</div>
+   464→                  <div style={{ fontSize: 10, color: "#6c757d" }}>
+   465→                    Add {Math.min(totalTeams, newSlots)} new + replace {Math.max(0, totalTeams - newSlots)} existing
+   466→                  </div>
+   467→                </div>
+   468→              </button>
+   469→              {/* Mode 2: New only */}
+   470→              <button
+   471→                onClick={() => setTransferMode("newOnly")}
+   472→                style={{
+   473→                  padding: 10,
+   474→                  border: transferMode === "newOnly" ? "2px solid #0066ff" : "1px solid #ddd",
+   475→                  background: transferMode === "newOnly" ? "#f5f0fa" : "#fff",
+   476→                  borderRadius: 6,
+   477→                  cursor: "pointer",
+   478→                  textAlign: "left",
+   479→                  display: "flex",
+   480→                  alignItems: "center",
+   481→                  gap: 8,
+   482→                }}
+   483→              >
+   484→                <Plus size={16} color="#28a745" />
+   485→                <div style={{ flex: 1 }}>
+   486→                  <div style={{ fontSize: 12, fontWeight: 700, color: "#212529" }}>Mode 2: Add New Only</div>
+   487→                  <div style={{ fontSize: 10, color: "#6c757d" }}>
+   488→                    Add {Math.min(totalTeams, newSlots)} new teams (no replace)
+   489→                  </div>
+   490→                </div>
+   491→              </button>
+   492→              {/* Mode 3: Custom */}
+   493→              <button
+   494→                onClick={() => setTransferMode("custom")}
+   495→                style={{
+   496→                  padding: 10,
+   497→                  border: transferMode === "custom" ? "2px solid #0066ff" : "1px solid #ddd",
+   498→                  background: transferMode === "custom" ? "#f5f0fa" : "#fff",
+   499→                  borderRadius: 6,
+   500→                  cursor: "pointer",
+   501→                  textAlign: "left",
+   502→                  display: "flex",
+   503→                  alignItems: "center",
+   504→                  gap: 8,
+   505→                }}
+   506→              >
+   507→                <Layers size={16} color="#f0ad4e" />
+   508→                <div style={{ flex: 1 }}>
+   509→                  <div style={{ fontSize: 12, fontWeight: 700, color: "#212529" }}>Mode 3: Custom (X + Y)</div>
+   510→                  <div style={{ fontSize: 10, color: "#6c757d" }}>Replace X + add Y teams</div>
+   511→                </div>
+   512→              </button>
+   513→            </div>
+   514→
+   515→            {/* Custom inputs */}
+   516→            {transferMode === "custom" && (
+   517→              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+   518→                <div style={{ flex: 1 }}>
+   519→                  <label style={{ fontSize: 10, fontWeight: 600, color: "#6c757d", display: "block", marginBottom: 4 }}>Replace (max {presentTeamCount})</label>
+   520→                  <input
+   521→                    type="number"
+   522→                    min={0}
+   523→                    max={presentTeamCount}
+   524→                    value={customReplaceCount}
+   525→                    onChange={(e) => setCustomReplaceCount(Math.max(0, Math.min(parseInt(e.target.value, 10) || 0, presentTeamCount)))}
+   526→                    style={{ width: "100%", padding: "6px 8px", border: "1px solid #ddd", borderRadius: 4, fontSize: 13, fontWeight: 600 }}
+   527→                  />
+   528→                </div>
+   529→                <div style={{ flex: 1 }}>
+   530→                  <label style={{ fontSize: 10, fontWeight: 600, color: "#6c757d", display: "block", marginBottom: 4 }}>Add (max {newSlots})</label>
+   531→                  <input
+   532→                    type="number"
+   533→                    min={0}
+   534→                    max={newSlots}
+   535→                    value={customAddCount}
+   536→                    onChange={(e) => setCustomAddCount(Math.max(0, Math.min(parseInt(e.target.value, 10) || 0, newSlots)))}
+   537→                    style={{ width: "100%", padding: "6px 8px", border: "1px solid #ddd", borderRadius: 4, fontSize: 13, fontWeight: 600 }}
+   538→                  />
+   539→                </div>
+   540→              </div>
+   541→            )}
+   542→          </div>
+   543→        )}
+   544→
+   545→        {/* Transfer button */}
+   546→        {currentAccount && totalTeams > 0 && (
+   547→          <button
+   548→            onClick={() => doTransfer(transferMode)}
+   549→            disabled={transferring}
+   550→            className="btn-tg-success"
+   551→            style={{
+   552→              width: "100%",
+   553→              padding: "12px",
+   554→              border: "none",
+   555→              borderRadius: 6,
+   556→              fontSize: 14,
+   557→              fontWeight: 700,
+   558→              display: "flex",
+   559→              alignItems: "center",
+   560→              justifyContent: "center",
+   561→              gap: 8,
+   562→              cursor: transferring ? "wait" : "pointer",
+   563→              opacity: transferring ? 0.7 : 1,
+   564→            }}
+   565→          >
+   566→            {transferring ? (
+   567→              <>
+   568→                <Loader2 size={16} className="animate-spin" /> Transferring {progressCurrent}/{progressTotal}...
+   569→              </>
+   570→            ) : (
+   571→              <>
+   572→                <Send size={16} /> Start Transfer ({transferMode === "all" ? totalTeams : transferMode === "newOnly" ? Math.min(totalTeams, newSlots) : customReplaceCount + customAddCount} teams)
+   573→              </>
+   574→            )}
+   575→          </button>
+   576→        )}
+   577→
+   578→        {/* Live progress bar during transfer */}
+   579→        {transferring && progressTotal > 0 && (
+   580→          <div style={{ marginTop: 12, marginBottom: 4 }}>
+   581→            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 600, color: "#0066ff", marginBottom: 4 }}>
+   582→              <span>{progressTeam || "Transferring..."}</span>
+   583→              <span>{progressCurrent}/{progressTotal} ({Math.round((progressCurrent / progressTotal) * 100)}%)</span>
+   584→            </div>
+   585→            {/* Progress bar */}
+   586→            <div style={{ width: "100%", height: 8, background: "#e9ecef", borderRadius: 4, overflow: "hidden" }}>
+   587→              <div
+   588→                style={{
+   589→                  width: `${(progressCurrent / progressTotal) * 100}%`,
+   590→                  height: "100%",
+   591→                  background: "linear-gradient(90deg, #0066ff, #28a745)",
+   592→                  borderRadius: 4,
+   593→                  transition: "width 0.3s ease",
+   594→                }}
+   595→              />
+   596→            </div>
+   597→            {/* Live counters */}
+   598→            <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 11 }}>
+   599→              <span style={{ color: "#28a745", fontWeight: 600 }}>
+   600→                ✓ {transferred.length} transferred
+   601→              </span>
+   602→              <span style={{ color: "#dc3545", fontWeight: 600 }}>
+   603→                ✗ {failedTeams.length} failed
+   604→              </span>
+   605→              <span style={{ color: "#6c757d" }}>
+   606→                ⏳ {progressTotal - progressCurrent - failedTeams.length - transferred.length} remaining
+   607→              </span>
+   608→            </div>
+   609→          </div>
+   610→        )}
+   611→      </div>
+   612→
+   613→      {/* Transfer result summary */}
+   614→      {bulkResult && (
+   615→        <div style={{ background: "#fff", borderRadius: 8, padding: 14, marginBottom: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+   616→          <h4 style={{ fontSize: 14, fontWeight: 700, color: transferred.length > 0 ? "#28a745" : "#dc3545", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+   617→            {transferred.length > 0 ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+   618→            Transfer Summary
+   619→          </h4>
+   620→          <div style={{ background: transferred.length > 0 ? "#d4edda" : "#fdecee", borderRadius: 6, padding: 10, marginBottom: 10, fontSize: 12, color: transferred.length > 0 ? "#155724" : "#dc3545" }}>
+   621→            <div style={{ fontWeight: 700, marginBottom: 4 }}>{bulkResult.message}</div>
+   622→            <div>
+   623→              Existing: {bulkResult.existingTeamsCount} · New slots: {bulkResult.newSlots} ·
+   624→              Edit: {bulkResult.teamsToEdit} · Add: {bulkResult.teamsToAdd}
+   625→            </div>
+   626→          </div>
+   627→          {transferred.length > 0 && (
+   628→            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, maxHeight: 100, overflowY: "auto" }} className="tg-scroll">
+   629→              {transferred.map((t: any, i: number) => (
+   630→                <span key={i} style={{ background: t.operation === "edit" ? "#fff3cd" : "#d4edda", color: t.operation === "edit" ? "#856404" : "#155724", padding: "3px 6px", borderRadius: 3, fontSize: 10, fontWeight: 600 }}>
+   631→                  #{t.team_number} {t.operation === "edit" ? "↻" : "+"}
+   632→                </span>
+   633→              ))}
+   634→            </div>
+   635→          )}
+   636→        </div>
+   637→      )}
+   638→
+   639→      {/* Failed teams */}
+   640→      {failedTeams.length > 0 && (
+   641→        <div style={{ background: "#fff", borderRadius: 8, padding: 14, marginBottom: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.06)", border: "1px solid #f5c6cb" }}>
+   642→          <h4 style={{ fontSize: 14, fontWeight: 700, color: "#dc3545", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+   643→            <AlertCircle size={16} /> Failed Teams ({failedTeams.length})
+   644→          </h4>
+   645→          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+   646→            {failedTeams.map((f: any, i: number) => (
+   647→              <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, padding: "4px 8px", background: "#fdecee", borderRadius: 4 }}>
+   648→                <span style={{ fontWeight: 600, color: "#dc3545" }}>Team #{f.team_number}</span>
+   649→                <span style={{ color: "#6c757d" }}>{f.error}</span>
+   650→              </div>
+   651→            ))}
+   652→          </div>
+   653→        </div>
+   654→      )}
+   655→
+   656→      <a href="/fantasy" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fff", borderRadius: 8, padding: "12px 14px", textDecoration: "none", color: "#212529", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+   657→        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+   658→          <Link2 size={18} color="#0066ff" />
+   659→          <span style={{ fontSize: 13, fontWeight: 600 }}>Manage Fantasy Accounts</span>
+   660→        </span>
+   661→        <ChevronRight size={16} color="#6c757d" />
+   662→      </a>
+   663→    </MatchShell>
+   664→  );
+   665→}
+   666→

@@ -1522,3 +1522,54 @@ Stage Summary:
 - All primary surfaces verified rendering correctly via VLM
 - Backward-compat layer ensures all legacy pages adopt new theme
 - Color palette: #050816 bg, #10b981 emerald accent, #06b6d4 cyan, #f59e0b amber
+
+---
+Task ID: 43
+Agent: main
+Task: Remove transfer limit restriction (Dream11/My11Circle) and fix teams being silently skipped during transfer
+
+Work Log:
+- ROOT CAUSE 1 (limit restriction): transfer/page.tsx hardcoded limits
+  - `const limit = selectedPlatform === "dream11" ? 11 : 40`
+  - `const maxTeams = selectedPlatform === "dream11" ? 11 : 40`
+  - `newSlots = Math.max(0, maxTeams - presentCount)` capped how many NEW teams could be added
+  - This artificially restricted transfers even when backend would allow more
+- ROOT CAUSE 2 (teams skipped): in "all" mode the math was:
+  - teamsToAdd = Math.min(storedTeams.length, newSlots)        // capped
+  - teamsToEdit = Math.min(storedTeams.length - teamsToAdd, presentCount)  // capped
+  - totalToProcess = teamsToAdd + teamsToEdit                   // < storedTeams.length!
+  - Loop only ran totalToProcess times → remaining teams SILENTLY SKIPPED
+  - Example: 20 generated, 6 existing, limit 11 → only 11 processed, 9 silently dropped
+
+- FIX 1: Removed all hardcoded limits
+  - Deleted `limit` and `maxTeams` variables from transfer/page.tsx
+  - Deleted dead `MAX_TEAMS` constant from api/transfer/route.ts
+  - Backend enforces real platform limits; app no longer pre-caps
+- FIX 2: Rewrote mode logic so NO team is ever silently skipped
+  - "all" mode: teamsToEdit = min(presentCount, totalTeams); teamsToAdd = totalTeams - teamsToEdit
+    → every generated team is either replaced (if existing slot) or added new
+  - "newOnly" mode: teamsToAdd = storedTeams.length (ALL as new, no cap)
+  - "custom" mode: teamsToEdit = X (bounded by present), teamsToAdd = Y (bounded by remaining)
+  - totalToProcess = teamsToAdd + teamsToEdit (always equals storedTeams.length for all/newOnly)
+- FIX 3: Guard against missing existing team_id during edit
+  - If editIndex out of range, fall back to "new" operation instead of skipping
+- UI updates:
+  - Account info: "Limit X teams" → "No transfer limit"
+  - Stats box: "New slots (add)" → "To add" = max(0, totalTeams - presentTeamCount)
+  - Mode 1 desc: "Replace X existing + add Y new" (accurate counts)
+  - Mode 2 desc: "Add all N generated teams as new"
+  - Custom "Add" input: removed max cap, allows any number
+  - Start Transfer button: shows totalTeams for all/newOnly modes
+  - Transfer summary: "New slots" → "Attempted: N"
+  - Fantasy page: "Limit X teams/batch" → "No transfer limit"
+
+- Lint passes cleanly (0 errors)
+- Browser-verified: transfer page renders (HTTP 200), 3 platform buttons visible,
+  API calls (list-of-teams, accounts) succeed
+
+Stage Summary:
+- Transfer limit restriction REMOVED for Dream11, My11Circle, Jumbo
+- Team-skipping bug FIXED: all generated teams are now attempted
+  (failures reported in Failed Teams list, never silently dropped)
+- Backend still enforces real platform limits → returns TEAM_LIMIT_REACHED
+  which shows as a clear failure (not a silent skip)

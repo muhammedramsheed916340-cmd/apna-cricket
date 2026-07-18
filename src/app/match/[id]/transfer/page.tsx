@@ -94,10 +94,10 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
   const linkedAccounts = accounts.filter((a) => a.linked);
   const currentAccount = linkedAccounts.find((a) => a.slug === selectedPlatform);
   const currentPlatform = FANTASY_PLATFORMS.find((p) => p.slug === selectedPlatform)!;
-  // maxTeams per platform — EXACT match to original TeamTransferScreen.tsx
-  const limit = selectedPlatform === "dream11" ? 11 : 40;
+  // NO hardcoded transfer limit — backend enforces real platform limits.
+  // All generated teams are attempted; failures are reported, never silently skipped.
   const presentTeamCount = existingTeams.length;
-  const newSlots = Math.max(0, limit - presentTeamCount);
+  const toAddCount = Math.max(0, totalTeams - presentTeamCount);
 
   // Fetch existing teams from the fantasy platform
   const fetchExisting = async () => {
@@ -180,24 +180,27 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
     } catch {}
 
     const presentCount = existingTeamIds.length;
-    const maxTeams = selectedPlatform === "dream11" ? 11 : 40;
-    const newSlots = Math.max(0, maxTeams - presentCount);
 
-    // Determine how many to add vs edit
+    // NO hardcoded limit — process ALL generated teams.
+    // Backend enforces real platform limits; failures are reported, never silently skipped.
     let teamsToAdd: number;
     let teamsToEdit: number;
     if (mode === "newOnly") {
-      teamsToAdd = Math.min(storedTeams.length, newSlots);
+      // Add ALL generated teams as new (no cap)
+      teamsToAdd = storedTeams.length;
       teamsToEdit = 0;
     } else if (mode === "custom") {
+      // User-specified X edit + Y add (bounded by available teams/existing)
       teamsToEdit = Math.min(customReplaceCount, presentCount, storedTeams.length);
-      teamsToAdd = Math.min(customAddCount, newSlots, storedTeams.length - teamsToEdit);
+      teamsToAdd = Math.min(customAddCount, storedTeams.length - teamsToEdit);
     } else {
-      // mode === "all": add new FIRST, then edit
-      teamsToAdd = Math.min(storedTeams.length, newSlots);
-      teamsToEdit = Math.min(storedTeams.length - teamsToAdd, presentCount);
+      // mode === "all": replace ALL existing, add the rest as new — NO teams skipped
+      teamsToEdit = Math.min(presentCount, storedTeams.length);
+      teamsToAdd = storedTeams.length - teamsToEdit;
     }
 
+    // Process every team in the plan — no silent skipping.
+    // For "all"/"newOnly" this equals storedTeams.length; for "custom" it's X+Y.
     const totalToProcess = teamsToAdd + teamsToEdit;
     const allTransferred: any[] = [];
     const allFailed: any[] = [];
@@ -248,11 +251,15 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
           authToken: currentAccount?.authToken || undefined,
         };
 
-        // For edit, include the existing team_id
+        // For edit, include the existing team_id (guard against missing index)
         if (isEdit) {
           const editIndex = i - teamsToAdd;
-          if (existingTeamIds[editIndex]) {
-            transferPayload.id = existingTeamIds[editIndex];
+          const existingId = existingTeamIds[editIndex];
+          if (!existingId) {
+            // No existing team to replace — add as new instead (don't skip)
+            transferPayload.type = "new";
+          } else {
+            transferPayload.id = existingId;
           }
         }
 
@@ -314,7 +321,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
       setBulkResult({
         message: `${allTransferred.length}/${storedTeams.length} teams transferred to ${currentPlatform.name}`,
         existingTeamsCount: presentTeamCount,
-        newSlots,
+        attempted: storedTeams.length,
         teamsToEdit: allTransferred.filter((t) => t.operation === "edit").length,
         teamsToAdd: allTransferred.filter((t) => t.operation === "add").length,
       });
@@ -392,7 +399,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
         {currentAccount && (
           <div style={{ background: "#d4edda", borderRadius: 6, padding: 10, marginBottom: 12, fontSize: 12, color: "#155724", display: "flex", alignItems: "center", gap: 8 }}>
             <CheckCircle2 size={14} />
-            <span>Linked: <strong>+91 {currentAccount.mobileNumber}</strong> · Limit {limit} teams</span>
+            <span>Linked: <strong>+91 {currentAccount.mobileNumber}</strong> · No transfer limit</span>
           </div>
         )}
 
@@ -414,8 +421,8 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
                 <div style={{ fontSize: 9, color: "#6c757d" }}>Present (replaceable)</div>
               </div>
               <div style={{ flex: 1, background: "#fff", borderRadius: 4, padding: 6, textAlign: "center", border: "1px solid #eee" }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#28a745" }}>{newSlots}</div>
-                <div style={{ fontSize: 9, color: "#6c757d" }}>New slots (add)</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#28a745" }}>{toAddCount}</div>
+                <div style={{ fontSize: 9, color: "#6c757d" }}>To add</div>
               </div>
               <div style={{ flex: 1, background: "#fff", borderRadius: 4, padding: 6, textAlign: "center", border: "1px solid #eee" }}>
                 <div style={{ fontSize: 18, fontWeight: 800, color: "#0066ff" }}>{totalTeams}</div>
@@ -462,7 +469,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#212529" }}>Mode 1: Add New + Replace</div>
                   <div style={{ fontSize: 10, color: "#6c757d" }}>
-                    Add {Math.min(totalTeams, newSlots)} new + replace {Math.max(0, totalTeams - newSlots)} existing
+                    Replace {Math.min(presentTeamCount, totalTeams)} existing + add {Math.max(0, totalTeams - presentTeamCount)} new
                   </div>
                 </div>
               </button>
@@ -485,7 +492,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#212529" }}>Mode 2: Add New Only</div>
                   <div style={{ fontSize: 10, color: "#6c757d" }}>
-                    Add {Math.min(totalTeams, newSlots)} new teams (no replace)
+                    Add all {totalTeams} generated teams as new
                   </div>
                 </div>
               </button>
@@ -527,13 +534,13 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
                   />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 10, fontWeight: 600, color: "#6c757d", display: "block", marginBottom: 4 }}>Add (max {newSlots})</label>
+                  <label style={{ fontSize: 10, fontWeight: 600, color: "#6c757d", display: "block", marginBottom: 4 }}>Add</label>
                   <input
                     type="number"
                     min={0}
-                    max={newSlots}
+                    max={totalTeams}
                     value={customAddCount}
-                    onChange={(e) => setCustomAddCount(Math.max(0, Math.min(parseInt(e.target.value, 10) || 0, newSlots)))}
+                    onChange={(e) => setCustomAddCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
                     style={{ width: "100%", padding: "6px 8px", border: "1px solid #ddd", borderRadius: 4, fontSize: 13, fontWeight: 600 }}
                   />
                 </div>
@@ -569,7 +576,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
               </>
             ) : (
               <>
-                <Send size={16} /> Start Transfer ({transferMode === "all" ? totalTeams : transferMode === "newOnly" ? Math.min(totalTeams, newSlots) : customReplaceCount + customAddCount} teams)
+                <Send size={16} /> Start Transfer ({transferMode === "all" ? totalTeams : transferMode === "newOnly" ? totalTeams : customReplaceCount + customAddCount} teams)
               </>
             )}
           </button>
@@ -620,7 +627,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
           <div style={{ background: transferred.length > 0 ? "#d4edda" : "#fdecee", borderRadius: 6, padding: 10, marginBottom: 10, fontSize: 12, color: transferred.length > 0 ? "#155724" : "#dc3545" }}>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>{bulkResult.message}</div>
             <div>
-              Existing: {bulkResult.existingTeamsCount} · New slots: {bulkResult.newSlots} ·
+              Existing: {bulkResult.existingTeamsCount} · Attempted: {bulkResult.attempted} ·
               Edit: {bulkResult.teamsToEdit} · Add: {bulkResult.teamsToAdd}
             </div>
           </div>

@@ -25,12 +25,8 @@ const DEFAULT_ENDPOINTS = {
   edit: [`${BACKEND}/api/fantasy/edit-team`],
 };
 
-// maxTeams per platform — EXACT match to TeamTransferScreen.tsx line 565
-const MAX_TEAMS: Record<string, number> = {
-  dream11: 11,
-  my11circle: 40,
-  jumbo: 40,
-};
+// No hardcoded transfer limit — the backend enforces real platform limits.
+// All generated teams are attempted; failures are reported, never silently skipped.
 
 // Token expiry detection — EXACT match to original
 function isConfirmedTokenExpiry(msg: string, data: any): boolean {

@@ -278,8 +278,8 @@ export default function FantasyPage() {
                       </div>
                       <div style={{ fontSize: 11, color: "#6c757d" }}>
                         {acc?.linked
-                          ? `Linked: ${acc.mobileNumber}`
-                          : `Not linked · Limit ${p.limit} teams/batch`}
+                          ? `Linked: ${acc.mobileNumber} · No transfer limit`
+                          : `Not linked · No transfer limit`}
                       </div>
                     </div>
                     {acc?.linked ? (
