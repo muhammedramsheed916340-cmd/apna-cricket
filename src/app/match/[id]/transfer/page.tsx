@@ -206,109 +206,88 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
     const allFailed: any[] = [];
     let stopped = false;
 
-    // Helper: transfer a single team with retry on generic backend errors
+    // Helper: transfer a single team — matches original exactly
+    // Original: single attempt per team (s=!!{}[u.slug] = false → NO retry)
+    // Delay: dream11=200ms, my11circle=2000ms, myteam11=2000ms
     const transferOne = async (team: any, isEdit: boolean, existingId?: string): Promise<{ ok: boolean; error?: string }> => {
-      const maxRetries = 2; // original + 2 retries = 3 attempts
-      let lastErr = "Transfer failed";
+      let userToken = "";
+      try { userToken = localStorage.getItem("user_token") || ""; } catch {}
 
-      for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        let userToken = "";
-        try { userToken = localStorage.getItem("user_token") || ""; } catch {}
-
-        // Get platform-specific fantasy IDs
-        const getPlatformId = (p: any): number => {
-          if (typeof p === "number") return p;
-          if (p?.fantasyIdList) {
-            const found = p.fantasyIdList.find((f: any) => f.name === selectedPlatform);
-            if (found?.id) return found.id;
-          }
-          return p?.fantasyId || 0;
-        };
-
-        const playerIds = (team.players || []).map((p: any) => getPlatformId(p)).filter((n: number) => n > 0);
-        const captainId = getPlatformId(team.captain) || playerIds[0] || 0;
-        const viceCaptainId = getPlatformId(team.vicecaptain) || playerIds[1] || 0;
-
-        if (playerIds.length < 11 || !captainId || !viceCaptainId) {
-          return { ok: false, error: `Invalid team data (${playerIds.length} players)` };
+      // Get platform-specific fantasy IDs
+      const getPlatformId = (p: any): number => {
+        if (typeof p === "number") return p;
+        if (p?.fantasyIdList) {
+          const found = p.fantasyIdList.find((f: any) => f.name === selectedPlatform);
+          if (found?.id) return found.id;
         }
+        return p?.fantasyId || 0;
+      };
 
-        const transferPayload: Record<string, unknown> = {
-          matchId,
-          fantasyApp: selectedPlatform,
-          captain: captainId,
-          vice_captain: viceCaptainId,
-          players: playerIds,
-          sportIndex: 0,
-          type: isEdit ? "edit" : "new",
-          userToken,
-          authToken: currentAccount?.authToken || undefined,
-        };
+      const playerIds = (team.players || []).map((p: any) => getPlatformId(p)).filter((n: number) => n > 0);
+      const captainId = getPlatformId(team.captain) || playerIds[0] || 0;
+      const viceCaptainId = getPlatformId(team.vicecaptain) || playerIds[1] || 0;
 
-        if (isEdit && existingId) {
-          transferPayload.id = existingId;
-        } else if (isEdit && !existingId) {
-          transferPayload.type = "new"; // fall back to add
-        }
-
-        if (selectedPlatform === "my11circle" && currentAccount) {
-          if (currentAccount.my11circleChallenge) transferPayload.my11circleChallenge = currentAccount.my11circleChallenge;
-          if (currentAccount.my11circleUserId) transferPayload.my11circleUserId = currentAccount.my11circleUserId;
-          if (currentAccount.mobileNumber) transferPayload.my11circleMobile = currentAccount.mobileNumber;
-        }
-        if (currentAccount?.mobileNumber) transferPayload.mobileNumber = currentAccount.mobileNumber;
-
-        try {
-          const res = await fetch("/api/transfer", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(transferPayload),
-          });
-          const data = await res.json();
-
-          if (data?.status === "success") {
-            return { ok: true };
-          }
-
-          // Hard-stop errors (don't retry)
-          if (data?.code === "TOKEN_EXPIRED" || data?.code === "NO_AUTH_TOKEN") {
-            return { ok: false, error: data?.error || "Session expired. Re-link via OTP." };
-          }
-          if (data?.code === "DEADLINE_PASSED") {
-            return { ok: false, error: "Match deadline passed" };
-          }
-
-          lastErr = data?.error || data?.message || data?.backendError || "Transfer failed";
-
-          // Retryable errors: rate limit, generic "Something Went Wrong", network, 5xx
-          const isRetryable =
-            data?.code === "RATE_LIMITED" ||
-            data?.retryable === true ||
-            /something went wrong|try again|still processing|timeout|timed out|network|server error|temporary/i.test(lastErr);
-
-          if (isRetryable && attempt < maxRetries) {
-            // Wait before retry (longer on each attempt)
-            const waitMs = 3000 * (attempt + 1);
-            setProgressTeam(`Team #${team.team_number} — retrying (${attempt + 1}/${maxRetries})…`);
-            await new Promise((r) => setTimeout(r, waitMs));
-            continue;
-          }
-          return { ok: false, error: lastErr };
-        } catch (e) {
-          lastErr = (e as Error).message;
-          if (attempt < maxRetries) {
-            const waitMs = 3000 * (attempt + 1);
-            setProgressTeam(`Team #${team.team_number} — retrying (${attempt + 1}/${maxRetries})…`);
-            await new Promise((r) => setTimeout(r, waitMs));
-            continue;
-          }
-          return { ok: false, error: lastErr };
-        }
+      if (playerIds.length < 11 || !captainId || !viceCaptainId) {
+        return { ok: false, error: `Invalid team data (${playerIds.length} players)` };
       }
-      return { ok: false, error: lastErr };
+
+      // Build payload — EXACT match to original
+      const transferPayload: Record<string, unknown> = {
+        matchId,
+        captain: captainId,
+        vice_captain: viceCaptainId,
+        players: playerIds,
+        fantasyApp: selectedPlatform,
+        authToken: currentAccount?.authToken || "",
+        sportIndex: 0,
+        type: isEdit ? "edit" : "new",
+        userToken,
+      };
+
+      // For edit, include the existing team_id as-is (string from backend)
+      if (isEdit && existingId) {
+        transferPayload.id = existingId;
+      } else if (isEdit && !existingId) {
+        transferPayload.type = "new"; // fall back to add
+      }
+
+      // My11Circle-specific fields
+      if (selectedPlatform === "my11circle" && currentAccount) {
+        if (currentAccount.my11circleChallenge) transferPayload.my11circleChallenge = String(currentAccount.my11circleChallenge);
+        if (currentAccount.my11circleUserId) transferPayload.my11circleUserId = String(currentAccount.my11circleUserId);
+        if (currentAccount.mobileNumber) transferPayload.my11circleMobile = String(currentAccount.mobileNumber);
+      }
+      if (currentAccount?.mobileNumber) {
+        transferPayload.mobileNumber = currentAccount.mobileNumber;
+      }
+
+      try {
+        const res = await fetch("/api/transfer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(transferPayload),
+        });
+        const data = await res.json();
+
+        if (data?.status === "success") {
+          return { ok: true };
+        }
+
+        // Token expired → hard stop
+        if (data?.code === "TOKEN_EXPIRED" || data?.code === "NO_AUTH_TOKEN") {
+          return { ok: false, error: data?.error || "Session expired. Re-link via OTP." };
+        }
+        if (data?.code === "DEADLINE_PASSED") {
+          return { ok: false, error: "Match deadline passed" };
+        }
+
+        return { ok: false, error: data?.error || data?.message || data?.backendError || "Transfer failed" };
+      } catch (e) {
+        return { ok: false, error: (e as Error).message };
+      }
     };
 
-    // Process teams ONE BY ONE
+    // Process teams ONE BY ONE — matches original (no retry, single attempt)
     for (let i = 0; i < totalToProcess; i++) {
       if (stopped) break;
       const team = storedTeams[i];
@@ -338,9 +317,10 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
         setFailedTeams([...allFailed]);
       }
 
-      // Platform-specific delay between teams (longer to avoid rate-limiting)
+      // Platform-specific delay — EXACT match to original:
+      // dream11=200ms, my11circle=2000ms, jumbo=2000ms (no jumbo in original, using 2000)
       if (i < totalToProcess - 1) {
-        const delay = selectedPlatform === "my11circle" ? 3000 : selectedPlatform === "jumbo" ? 2000 : 1500;
+        const delay = selectedPlatform === "dream11" ? 200 : 2000;
         await new Promise((r) => setTimeout(r, delay));
       }
     }

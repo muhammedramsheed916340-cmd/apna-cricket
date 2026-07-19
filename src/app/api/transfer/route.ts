@@ -170,9 +170,8 @@ export async function POST(req: Request) {
     const sport = typeof sportIndex === "number" ? sportIndex : 0;
     const operation: "add" | "edit" = type === "edit" ? "edit" : "add";
 
-    if (operation === "edit" && !id) {
-      return NextResponse.json({ status: "fail", error: "Team ID is required for edit/replace operations", code: "MISSING_TEAM_ID" });
-    }
+    // NOTE: original does NOT hard-require id for edit — it sends whatever is provided.
+    // If id is missing for edit, backend treats it as add. Don't block here.
 
     // Bearer token — OPTIONAL (bypass mode works without it)
     const bearerToken = userToken || "";
@@ -232,7 +231,7 @@ export async function POST(req: Request) {
           method: "POST",
           headers,
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(15000),
+          signal: AbortSignal.timeout(30000),
         });
 
         const responseText = await res.text();
