@@ -1624,3 +1624,61 @@ Stage Summary:
   (3s, 6s waits) → most transient backend failures recover automatically
 - "remaining" count never goes negative (clamped with Math.max(0, ...))
 - All 40 teams now attempted; failures clearly reported with backend error text
+
+---
+Task ID: 45
+Agent: main
+Task: Research original teamgeneration.in transfer + free contest flow
+
+Work Log:
+- Downloaded original site JS bundle (main.b29bfc66.js, 1.8MB)
+- Extracted transfer and contest logic by grepping for keywords
+
+FINDINGS — ORIGINAL TRANSFER FLOW:
+- Dream11 single-team transfer: POST /api/classic/dream11/addteam
+  - Payload: {matchId, captain, vice_captain, players, fantasyApp, authToken, sportIndex, type, generateLinkFlag:"general"}
+  - Response: returns a LINK (ca(e.data.data).link) opened in new tab (Dream11 opens their site)
+  - Error handling: if HTTP status !== 200 → toast "Something went wrong! please try again."
+- Bulk transfer (all platforms): POST /api/fantasy/add-team (add) or /api/fantasy/edit-team (edit)
+  - Payload: {matchId, captain, vice_captain, players, fantasyApp, authToken, sportIndex, type:"edit"|"new", id?}
+  - For edit: includes id (existing team_id)
+  - vision11: adds userId
+- Our /api/transfer/route.ts ALREADY matches this exactly ✓
+
+FINDINGS — ORIGINAL FREE CONTEST FLOW (we DON'T have this yet):
+- Fetch free contests: POST /api/{platform}/contest/all-free-status
+  - platform = "dream11" or "my11circle" (NO jumbo)
+  - Payload: {authToken, matchId, allTeamIds: [team_id numbers]}
+  - Response: {status:"success", contests: [...]}
+  - Contest object fields:
+    - contestId, contestName
+    - availableSlots (how many teams can join)
+    - notJoinedTeamIds (team IDs not yet joined this contest)
+    - joinedTeamIds (team IDs already joined)
+    - joinedCount, maxAllowedTeams / maxJoinTeamCount
+- Join free contest: POST /api/{platform}/contest/join-contest
+  - Payload: {authToken, matchId, contestId, teamIds: [numbers]}
+  - Response: {status:"success", joinResults: [{teamId, success}], summary: {successCount, failedCount}}
+  - Headers: Authorization: Bearer {user_token from localStorage}
+- UI flow:
+  1. User transfers teams to platform first
+  2. App fetches all-free-status with those team IDs
+  3. Shows list of free contests with "Join" button per contest
+  4. Clicking Join sends notJoinedTeamIds (capped by availableSlots) to join-contest
+  5. Shows per-team success/failure badges (green T#/red T#)
+
+GAP ANALYSIS:
+- ✓ Transfer endpoints: ours match original (fantasy/add-team, fantasy/edit-team, classic/dream11/addteam)
+- ✓ Transfer payload: ours matches original exactly
+- ✗ Free Contest feature: completely MISSING from our app
+  - Need: /api/fantasy/contests/route.ts (fetch free contests)
+  - Need: /api/fantasy/join-contest/route.ts (join contest)
+  - Need: Contest UI on transfer page or new tab
+
+Stage Summary:
+- Original transfer flow confirmed — our implementation matches
+- Original has a FREE CONTEST joining feature we don't have:
+  - Fetches free contests available for transferred teams
+  - Lets user 1-click join free contests with their teams
+  - Endpoints: /api/{dream11|my11circle}/contest/all-free-status + join-contest
+- Next step: build free contest feature (API + UI)
