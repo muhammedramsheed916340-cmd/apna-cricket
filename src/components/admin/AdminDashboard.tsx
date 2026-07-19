@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Key, Smartphone, Users, FileText, Settings, Megaphone, BarChart3, Plus, Trash2, Ban, CheckCircle2, Clock, RefreshCw } from "lucide-react";
+import { X, Key, Smartphone, Users, FileText, Settings, Megaphone, BarChart3, Plus, Trash2, Ban, CheckCircle2, Clock, RefreshCw, KeyRound, Save, Eraser } from "lucide-react";
 
 const ADMIN_PASS = "8950888988";
 
-type Tab = "dashboard" | "licenses" | "devices" | "users" | "logs" | "settings" | "announcements";
+type Tab = "dashboard" | "licenses" | "devices" | "users" | "logs" | "settings" | "announcements" | "jwt";
 
 export function AdminDashboard({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -21,6 +21,8 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
   const [genResult, setGenResult] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [jwtToken, setJwtToken] = useState("");
+  const [jwtSaved, setJwtSaved] = useState(false);
 
   const fetchStats = async () => {
     const res = await fetch("/api/admin/stats");
@@ -64,6 +66,11 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
   useEffect(() => { if (tab === "users") fetchUsers(); }, [tab]);
   useEffect(() => { if (tab === "logs") fetchLogs(); }, [tab, logFilter]);
   useEffect(() => { if (tab === "settings") fetchSettings(); }, [tab]);
+  useEffect(() => {
+    if (tab === "jwt") {
+      try { setJwtToken(localStorage.getItem("user_token") || ""); } catch {}
+    }
+  }, [tab]);
 
   const generateKeys = async () => {
     setLoading(true);
@@ -104,6 +111,39 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
     });
   };
 
+  const saveJwtToken = async () => {
+    const token = jwtToken.trim();
+    try {
+      if (token) {
+        localStorage.setItem("user_token", token);
+      } else {
+        localStorage.removeItem("user_token");
+      }
+      // Also persist server-side via settings API so it survives across devices
+      await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "jwt_token", value: token, adminPassword: ADMIN_PASS }),
+      });
+      setJwtSaved(true);
+      setTimeout(() => setJwtSaved(false), 2500);
+    } catch (e) {
+      console.error("JWT save failed", e);
+    }
+  };
+
+  const clearJwtToken = async () => {
+    setJwtToken("");
+    try {
+      localStorage.removeItem("user_token");
+      await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "jwt_token", value: "", adminPassword: ADMIN_PASS }),
+      });
+    } catch {}
+  };
+
   const filteredDevices = devices.filter(d => {
     if (!search) return true;
     const s = search.toLowerCase();
@@ -118,6 +158,7 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
     { id: "logs", label: "Logs", icon: FileText },
     { id: "settings", label: "Settings", icon: Settings },
     { id: "announcements", label: "Announce", icon: Megaphone },
+    { id: "jwt", label: "JWT Token", icon: KeyRound },
   ];
 
   const statCards = [
@@ -306,6 +347,111 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
         {/* Announcements Tab */}
         {tab === "announcements" && (
           <AnnouncementTab />
+        )}
+
+        {/* JWT Token Tab */}
+        {tab === "jwt" && (
+          <div style={{ background: "#0a0a0a", border: "1px solid #0066ff40", borderRadius: 8, padding: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#0066ff", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+              <KeyRound size={16} /> JWT Token / Bearer Auth
+            </div>
+            <p style={{ fontSize: 11, color: "#888", marginBottom: 14, lineHeight: 1.5 }}>
+              This token is sent as <code style={{ color: "#34d399" }}>Authorization: Bearer &lt;token&gt;</code> header
+              for team transfers and free contest joins. Paste your backend JWT here and Save.
+            </p>
+
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#888", display: "block", marginBottom: 6 }}>
+              Backend JWT Token (user_token)
+            </label>
+            <textarea
+              placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              value={jwtToken}
+              onChange={e => setJwtToken(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px",
+                background: "#111",
+                border: "1px solid #333",
+                borderRadius: 6,
+                color: "#fff",
+                fontSize: 11,
+                fontFamily: "monospace",
+                minHeight: 90,
+                marginBottom: 12,
+                resize: "vertical",
+              }}
+            />
+
+            {/* Status indicator */}
+            {jwtSaved && (
+              <div style={{ background: "#0d2818", border: "1px solid #00b050", borderRadius: 6, padding: "8px 10px", marginBottom: 10, fontSize: 11, color: "#00b050", display: "flex", alignItems: "center", gap: 6 }}>
+                <CheckCircle2 size={14} /> JWT token saved! It will be used for all transfers and contest joins.
+              </div>
+            )}
+            {jwtToken && !jwtSaved && (
+              <div style={{ background: "#1a1a00", border: "1px solid #ffc107", borderRadius: 6, padding: "8px 10px", marginBottom: 10, fontSize: 11, color: "#ffc107" }}>
+                ⚠ Token present — click Save to persist, or Clear to remove.
+              </div>
+            )}
+            {!jwtToken && !jwtSaved && (
+              <div style={{ background: "#1a0010", border: "1px solid #dc3545", borderRadius: 6, padding: "8px 10px", marginBottom: 10, fontSize: 11, color: "#dc3545" }}>
+                ✗ No token set. Transfers will still work but contest joins may fail.
+              </div>
+            )}
+
+            {/* 2 buttons: Save + Clear */}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={saveJwtToken}
+                style={{
+                  flex: 2,
+                  padding: "10px",
+                  background: "#00b050",
+                  border: "none",
+                  borderRadius: 6,
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                }}
+              >
+                <Save size={14} /> Save Token
+              </button>
+              <button
+                onClick={clearJwtToken}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  background: "#dc3545",
+                  border: "none",
+                  borderRadius: 6,
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                }}
+              >
+                <Eraser size={14} /> Clear
+              </button>
+            </div>
+
+            {/* Token info */}
+            <div style={{ marginTop: 14, padding: 10, background: "#111", borderRadius: 6, fontSize: 10, color: "#666", lineHeight: 1.6 }}>
+              <div style={{ fontWeight: 700, color: "#888", marginBottom: 4 }}>ℹ How it works:</div>
+              <div>• Token stored in <code style={{ color: "#34d399" }}>localStorage</code> as <code>user_token</code></div>
+              <div>• Sent as <code style={{ color: "#34d399" }}>Authorization: Bearer</code> header</div>
+              <div>• Used by: Transfer API, Free Contest fetch + join</div>
+              <div>• Also persisted server-side via admin settings</div>
+            </div>
+          </div>
         )}
       </div>
     </div>

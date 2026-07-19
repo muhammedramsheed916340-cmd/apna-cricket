@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Home, Clock, Search, User } from "lucide-react";
+import { Home, Clock, Gift, Search, User } from "lucide-react";
 
 const ITEMS = [
   { id: "home", label: "Home", icon: Home, path: "/" },
+  { id: "contests", label: "Contests", icon: Gift, path: "/contests" },
   { id: "mymatches", label: "My matches", icon: Clock, path: "/mymatches" },
   { id: "research", label: "Research", icon: Search, path: "/research" },
   { id: "user", label: "Profile", icon: User, path: "/profile" },
