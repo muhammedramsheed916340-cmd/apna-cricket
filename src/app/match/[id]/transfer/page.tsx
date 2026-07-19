@@ -206,15 +206,12 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
     const allFailed: any[] = [];
     let stopped = false;
 
-    // Process teams ONE BY ONE
-    for (let i = 0; i < totalToProcess; i++) {
-      if (stopped) break;
-      const team = storedTeams[i];
-      const isEdit = i >= teamsToAdd; // first teamsToAdd are NEW, rest are EDIT
-      setProgressCurrent(i + 1);
-      setProgressTeam(`Team #${team.team_number} (${i + 1}/${totalToProcess}) ${isEdit ? "REPLACE" : "NEW"}`);
+    // Helper: transfer a single team with retry on generic backend errors
+    const transferOne = async (team: any, isEdit: boolean, existingId?: string): Promise<{ ok: boolean; error?: string }> => {
+      const maxRetries = 2; // original + 2 retries = 3 attempts
+      let lastErr = "Transfer failed";
 
-      try {
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
         let userToken = "";
         try { userToken = localStorage.getItem("user_token") || ""; } catch {}
 
@@ -233,12 +230,9 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
         const viceCaptainId = getPlatformId(team.vicecaptain) || playerIds[1] || 0;
 
         if (playerIds.length < 11 || !captainId || !viceCaptainId) {
-          allFailed.push({ team_number: team.team_number, error: `Invalid team data (${playerIds.length} players)` });
-          setFailedTeams([...allFailed]);
-          continue;
+          return { ok: false, error: `Invalid team data (${playerIds.length} players)` };
         }
 
-        // Build the EXACT payload the transfer API expects
         const transferPayload: Record<string, unknown> = {
           matchId,
           fantasyApp: selectedPlatform,
@@ -251,19 +245,12 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
           authToken: currentAccount?.authToken || undefined,
         };
 
-        // For edit, include the existing team_id (guard against missing index)
-        if (isEdit) {
-          const editIndex = i - teamsToAdd;
-          const existingId = existingTeamIds[editIndex];
-          if (!existingId) {
-            // No existing team to replace — add as new instead (don't skip)
-            transferPayload.type = "new";
-          } else {
-            transferPayload.id = existingId;
-          }
+        if (isEdit && existingId) {
+          transferPayload.id = existingId;
+        } else if (isEdit && !existingId) {
+          transferPayload.type = "new"; // fall back to add
         }
 
-        // My11Circle fields from account
         if (selectedPlatform === "my11circle" && currentAccount) {
           if (currentAccount.my11circleChallenge) transferPayload.my11circleChallenge = currentAccount.my11circleChallenge;
           if (currentAccount.my11circleUserId) transferPayload.my11circleUserId = currentAccount.my11circleUserId;
@@ -271,45 +258,89 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
         }
         if (currentAccount?.mobileNumber) transferPayload.mobileNumber = currentAccount.mobileNumber;
 
-        const res = await fetch("/api/transfer", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(transferPayload),
-        });
-        const data = await res.json();
-
-        if (data?.status === "success") {
-          allTransferred.push({
-            team_number: team.team_number,
-            status: "transferred",
-            operation: isEdit ? "edit" : "add",
+        try {
+          const res = await fetch("/api/transfer", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(transferPayload),
           });
-          setTransferred([...allTransferred]);
-        } else {
-          if (data?.code === "TOKEN_EXPIRED" || data?.code === "NO_AUTH_TOKEN") {
-            // Don't redirect — just record the error and continue
-            allFailed.push({ team_number: team.team_number, error: data?.error || "Session expired. Re-link via OTP." });
-            setFailedTeams([...allFailed]);
-            // Stop transferring remaining teams (they'll all fail too)
-            stopped = true;
-            break;
-          }
-          allFailed.push({ team_number: team.team_number, error: data?.error || data?.message || "Transfer failed" });
-          setFailedTeams([...allFailed]);
+          const data = await res.json();
 
-          // Rate limit → wait and retry once
-          if (data?.code === "RATE_LIMITED" && i < totalToProcess - 1) {
-            await new Promise((r) => setTimeout(r, 4000));
+          if (data?.status === "success") {
+            return { ok: true };
           }
+
+          // Hard-stop errors (don't retry)
+          if (data?.code === "TOKEN_EXPIRED" || data?.code === "NO_AUTH_TOKEN") {
+            return { ok: false, error: data?.error || "Session expired. Re-link via OTP." };
+          }
+          if (data?.code === "DEADLINE_PASSED") {
+            return { ok: false, error: "Match deadline passed" };
+          }
+
+          lastErr = data?.error || data?.message || data?.backendError || "Transfer failed";
+
+          // Retryable errors: rate limit, generic "Something Went Wrong", network, 5xx
+          const isRetryable =
+            data?.code === "RATE_LIMITED" ||
+            data?.retryable === true ||
+            /something went wrong|try again|still processing|timeout|timed out|network|server error|temporary/i.test(lastErr);
+
+          if (isRetryable && attempt < maxRetries) {
+            // Wait before retry (longer on each attempt)
+            const waitMs = 3000 * (attempt + 1);
+            setProgressTeam(`Team #${team.team_number} — retrying (${attempt + 1}/${maxRetries})…`);
+            await new Promise((r) => setTimeout(r, waitMs));
+            continue;
+          }
+          return { ok: false, error: lastErr };
+        } catch (e) {
+          lastErr = (e as Error).message;
+          if (attempt < maxRetries) {
+            const waitMs = 3000 * (attempt + 1);
+            setProgressTeam(`Team #${team.team_number} — retrying (${attempt + 1}/${maxRetries})…`);
+            await new Promise((r) => setTimeout(r, waitMs));
+            continue;
+          }
+          return { ok: false, error: lastErr };
         }
-      } catch (e) {
-        allFailed.push({ team_number: team.team_number, error: (e as Error).message });
+      }
+      return { ok: false, error: lastErr };
+    };
+
+    // Process teams ONE BY ONE
+    for (let i = 0; i < totalToProcess; i++) {
+      if (stopped) break;
+      const team = storedTeams[i];
+      const isEdit = i >= teamsToAdd; // first teamsToAdd are NEW, rest are EDIT
+      setProgressCurrent(i + 1);
+      setProgressTeam(`Team #${team.team_number} (${i + 1}/${totalToProcess}) ${isEdit ? "REPLACE" : "NEW"}`);
+
+      const existingId = isEdit ? existingTeamIds[i - teamsToAdd] : undefined;
+      const result = await transferOne(team, isEdit, existingId);
+
+      if (result.ok) {
+        allTransferred.push({
+          team_number: team.team_number,
+          status: "transferred",
+          operation: isEdit ? "edit" : "add",
+        });
+        setTransferred([...allTransferred]);
+      } else {
+        // Token expired → stop the whole batch
+        if (/session expired|re-link via otp|token expired|no auth token/i.test(result.error || "")) {
+          allFailed.push({ team_number: team.team_number, error: result.error || "Session expired" });
+          setFailedTeams([...allFailed]);
+          stopped = true;
+          break;
+        }
+        allFailed.push({ team_number: team.team_number, error: result.error || "Transfer failed" });
         setFailedTeams([...allFailed]);
       }
 
-      // Platform-specific delay between teams
+      // Platform-specific delay between teams (longer to avoid rate-limiting)
       if (i < totalToProcess - 1) {
-        const delay = selectedPlatform === "my11circle" ? 3000 : selectedPlatform === "jumbo" ? 1000 : 300;
+        const delay = selectedPlatform === "my11circle" ? 3000 : selectedPlatform === "jumbo" ? 2000 : 1500;
         await new Promise((r) => setTimeout(r, delay));
       }
     }
@@ -610,7 +641,7 @@ export default function TransferPage({ params }: { params: Promise<{ id: string 
                 ✗ {failedTeams.length} failed
               </span>
               <span style={{ color: "#6c757d" }}>
-                ⏳ {progressTotal - progressCurrent - failedTeams.length - transferred.length} remaining
+                ⏳ {Math.max(0, progressTotal - transferred.length - failedTeams.length)} remaining
               </span>
             </div>
           </div>

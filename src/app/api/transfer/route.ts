@@ -316,10 +316,15 @@ export async function POST(req: Request) {
     }
 
     // All endpoints failed
+    // Mark generic backend errors (like "Something Went Wrong") as retryable
+    // so the frontend can retry them with backoff.
+    const isRetryable = /something went wrong|try again|still processing|timeout|timed out|network|server error|temporary|internal error/i.test(lastError);
+
     return NextResponse.json({
       status: "fail",
       error: lastError || "Transfer failed. Please try again.",
-      code: "TRANSFER_FAILED",
+      code: isRetryable ? "RETRYABLE_ERROR" : "TRANSFER_FAILED",
+      retryable: isRetryable,
       backendError: lastError,
     });
 
