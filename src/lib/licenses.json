@@ -1194,5 +1194,18 @@
     "createdAt": "2026-07-21T13:56:09.000Z",
     "createdBy": "admin",
     "updatedAt": "2026-07-21T13:56:09.000Z"
+  },
+  {
+    "key": "RMSMT-A7DY-PKWT-4DZF",
+    "plan": "lifetime",
+    "status": "active",
+    "deviceFp": null,
+    "expiresAt": "2036-07-18T14:11:51.294Z",
+    "usageCount": 0,
+    "lastUsedAt": null,
+    "boundAt": null,
+    "createdAt": "2026-07-21T14:11:54.112Z",
+    "createdBy": "admin",
+    "updatedAt": "2026-07-21T14:11:54.112Z"
   }
 ]

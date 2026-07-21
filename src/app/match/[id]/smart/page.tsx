@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { MatchShell } from "@/components/tg/match-shell";
 import { TeamCard, ComboDistribution, type GenTeam } from "@/components/tg/team-card";
+import { useToast } from "@/hooks/use-toast";
 import { ROLE_LABELS } from "@/lib/players";
 import { storeTeams, getPlayerPool } from "@/lib/teams-storage";
 
@@ -176,6 +177,7 @@ const chipBtn = (active: boolean): React.CSSProperties => ({
 
 export default function SmartPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [matchId, setMatchId] = useState("");
   const [loading, setLoading] = useState(false);
   const [teams, setTeams] = useState<GenTeam[]>([]);
@@ -229,6 +231,7 @@ export default function SmartPage({ params }: { params: Promise<{ id: string }> 
           pitchType,
           maxSameComboPercent: 30,
         }),
+        signal: AbortSignal.timeout(30000),
       });
       const data = await res.json();
       if (data?.teams) {
@@ -237,7 +240,22 @@ export default function SmartPage({ params }: { params: Promise<{ id: string }> 
         if (data.combinationDistribution) {
           setComboDist(data.combinationDistribution);
         }
+      } else {
+        // Show error to user instead of spinning forever
+        const errorMsg = data?.message || data?.error || "Generation failed. Please try again.";
+        toast({
+          title: "Generation Failed",
+          description: errorMsg,
+          variant: "destructive",
+        });
       }
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : "Network error. Please try again.";
+      toast({
+        title: "Generation Error",
+        description: errorMsg.includes("timeout") ? "Request timed out. Please try again." : errorMsg,
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }

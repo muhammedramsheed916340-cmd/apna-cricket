@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { verifyLicenseKey } from "@/lib/license-verify";
+import { verifyLicenseKeyAsync } from "@/lib/license-verify";
 
 export const dynamic = "force-dynamic";
 
@@ -84,10 +84,10 @@ interface TransferReq {
 
 export async function POST(req: Request) {
   try {
-    // ====== SERVER-SIDE LICENSE VERIFICATION (mandatory) ======
+    // ====== SERVER-SIDE LICENSE VERIFICATION (mandatory, async — checks Neon) ======
     const cookieStore = await cookies();
     const licenseKey = cookieStore.get("tg_license_key")?.value || "";
-    const licenseCheck = verifyLicenseKey(licenseKey);
+    const licenseCheck = await verifyLicenseKeyAsync(licenseKey);
     if (!licenseCheck.authorized) {
       return NextResponse.json(
         { status: "fail", error: licenseCheck.error, code: licenseCheck.code },

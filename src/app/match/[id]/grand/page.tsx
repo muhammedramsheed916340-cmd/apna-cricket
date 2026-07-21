@@ -22,6 +22,7 @@ import {
 import { MatchShell } from "@/components/tg/match-shell";
 import { TeamCard, ComboDistribution, type GenTeam } from "@/components/tg/team-card";
 import { storeTeams, getPlayerPool } from "@/lib/teams-storage";
+import { useToast } from "@/hooks/use-toast";
 
 const PITCH_TYPES = [
   { id: "auto", label: "🤖 AI Auto Detect", desc: "Smart pick" },
@@ -101,6 +102,7 @@ const chipBtn = (active: boolean): React.CSSProperties => ({
 
 export default function GrandPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [matchId, setMatchId] = useState("");
   const [loading, setLoading] = useState(false);
   const [teams, setTeams] = useState<GenTeam[]>([]);
@@ -131,13 +133,19 @@ export default function GrandPage({ params }: { params: Promise<{ id: string }> 
           pitchType,
           maxSameComboPercent: 30,
         }),
+        signal: AbortSignal.timeout(30000),
       });
       const data = await res.json();
       if (data?.teams) {
         setTeams(data.teams);
         storeTeams(matchId, "grand", data.teams);
         if (data.combinationDistribution) setComboDist(data.combinationDistribution);
+      } else {
+        toast({ title: "Generation Failed", description: data?.message || data?.error || "Unknown error", variant: "destructive" });
       }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Network error";
+      toast({ title: "Error", description: msg.includes("timeout") ? "Request timed out" : msg, variant: "destructive" });
     } finally {
       setLoading(false);
     }
