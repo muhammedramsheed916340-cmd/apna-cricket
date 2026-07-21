@@ -1,37 +1,39 @@
 {
-  "name": "Team Generation",
-  "short_name": "Team Generation",
-  "theme_color": "rgb(86,61,124)",
-  "background_color": "rgb(86,61,124)",
+  "name": "Apna Cricket — Fantasy Team Generator",
+  "short_name": "Apna Cricket",
+  "description": "India's best fantasy cricket team generator with AI-powered Rank 1 team generation for Dream11, My11Circle.",
+  "theme_color": "#050816",
+  "background_color": "#050816",
   "display": "standalone",
+  "orientation": "portrait",
   "scope": "/",
   "start_url": "/",
+  "id": "/",
+  "categories": ["sports", "entertainment"],
   "icons": [
     {
       "src": "maskable.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "maskable"
     },
     {
       "src": "logo192.png",
       "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "logo256.png",
-      "sizes": "256x256",
-      "type": "image/png"
-    },
-    {
-      "src": "logo384.png",
-      "sizes": "384x384",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "logo512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }

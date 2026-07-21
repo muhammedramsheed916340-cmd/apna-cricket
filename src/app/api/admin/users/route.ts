@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin/auth";
 
 export const dynamic = "force-dynamic";
 
 // In-memory users (no database needed)
 const users: any[] = [];
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = await requireAdmin(req);
+  if (auth.error) {
+    return NextResponse.json({ status: "fail", error: auth.error }, { status: 401 });
+  }
   return NextResponse.json({ status: "success", users });
 }
 

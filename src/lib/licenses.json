@@ -3,11 +3,11 @@
     "key": "RMSMT-GSDC-7KFW-326N",
     "plan": "monthly",
     "status": "used",
-    "deviceFp": "test_device_123",
+    "deviceFp": "debug_device_002",
     "expiresAt": "2026-07-23T00:14:50.234Z",
-    "usageCount": 0,
-    "lastUsedAt": null,
-    "boundAt": null
+    "usageCount": 2,
+    "lastUsedAt": 1784583642339,
+    "boundAt": 1784583642339
   },
   {
     "key": "RMSMT-BU3N-QVBU-P8ZS",
@@ -658,5 +658,105 @@
     "usageCount": 1,
     "lastUsedAt": "2026-07-18T20:30:05.919Z",
     "boundAt": "2026-07-18T20:30:05.919Z"
+  },
+  {
+    "key": "RMSMT-CVNF-4MVW-YJV9",
+    "plan": "lifetime",
+    "status": "used",
+    "deviceFp": "0e52d2ce-32d0-40ec-9fa9-b6e189c73d32",
+    "expiresAt": "2036-07-17T20:23:33.859Z",
+    "usageCount": 11,
+    "lastUsedAt": "2026-07-20T21:51:18.490Z",
+    "boundAt": "2026-07-20T20:24:20.646Z"
+  },
+  {
+    "key": "RMSMT-GR8E-ZNYK-QSQJ",
+    "plan": "monthly",
+    "status": "active",
+    "deviceFp": null,
+    "expiresAt": "2026-08-19T21:30:57.754Z",
+    "usageCount": 0,
+    "lastUsedAt": null,
+    "boundAt": null
+  },
+  {
+    "key": "RMSMT-6224-88UD-VLLM",
+    "plan": "monthly",
+    "status": "active",
+    "deviceFp": null,
+    "expiresAt": "2026-08-19T21:31:25.175Z",
+    "usageCount": 0,
+    "lastUsedAt": null,
+    "boundAt": null
+  },
+  {
+    "key": "RMSMT-GMTX-T5ZU-PCNZ",
+    "plan": "monthly",
+    "status": "used",
+    "deviceFp": "test_debug_001",
+    "expiresAt": "2026-08-19T21:47:04.272Z",
+    "usageCount": 1,
+    "lastUsedAt": "2026-07-20T21:47:09.685Z",
+    "boundAt": "2026-07-20T21:47:09.685Z"
+  },
+  {
+    "key": "RMSMT-TLQU-GE9E-LNYA",
+    "plan": "monthly",
+    "status": "used",
+    "deviceFp": "test_verify_001",
+    "expiresAt": "2026-08-19T21:47:45.910Z",
+    "usageCount": 1,
+    "lastUsedAt": "2026-07-20T21:47:46.001Z",
+    "boundAt": "2026-07-20T21:47:46.001Z"
+  },
+  {
+    "key": "RMSMT-YRCM-U327-H9UD",
+    "plan": "monthly",
+    "status": "used",
+    "deviceFp": "test_abc",
+    "expiresAt": "2026-08-19T21:49:00.030Z",
+    "usageCount": 2,
+    "lastUsedAt": "2026-07-20T21:49:16.031Z",
+    "boundAt": "2026-07-20T21:49:00.141Z"
+  },
+  {
+    "key": "RMSMT-U7L2-VCYE-7Q9S",
+    "plan": "monthly",
+    "status": "used",
+    "deviceFp": "undefined",
+    "expiresAt": "2026-08-19T21:49:44.471Z",
+    "usageCount": 1,
+    "lastUsedAt": "2026-07-20T21:50:00.422Z",
+    "boundAt": "2026-07-20T21:50:00.422Z"
+  },
+  {
+    "key": "RMSMT-FP5U-Z6TN-PSVD",
+    "plan": "monthly",
+    "status": "active",
+    "deviceFp": null,
+    "expiresAt": "2026-08-19T21:50:16.176Z",
+    "usageCount": 0,
+    "lastUsedAt": null,
+    "boundAt": null
+  },
+  {
+    "key": "RMSMT-3DU2-RH35-E74K",
+    "plan": "monthly",
+    "status": "active",
+    "deviceFp": null,
+    "expiresAt": "2026-08-19T21:51:29.093Z",
+    "usageCount": 0,
+    "lastUsedAt": null,
+    "boundAt": null
+  },
+  {
+    "key": "RMSMT-8LEK-WSY9-E2NV",
+    "plan": "monthly",
+    "status": "active",
+    "deviceFp": null,
+    "expiresAt": "2026-08-19T22:01:56.481Z",
+    "usageCount": 0,
+    "lastUsedAt": null,
+    "boundAt": null
   }
 ]

@@ -2,13 +2,29 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Coins, ChevronRight, Info } from "lucide-react";
+import { Users, Coins, ChevronRight, CheckCircle2, Layers } from "lucide-react";
 import { MatchShell } from "@/components/tg/match-shell";
 import { ROLE_LABELS, ROLE_FULL, type Player } from "@/lib/players";
 import { storePlayerPool } from "@/lib/teams-storage";
-
-const ROLE_COLORS = ["#17a2b8", "#28a745", "#ffc107", "#dc3545"];
-const ROLE_BG = ["#e3f7fa", "#e8f8ea", "#fff8e1", "#fdecee"];
+import {
+  cardStyle,
+  sectionTitle,
+  subtitle,
+  statBox,
+  statNum,
+  statLabel,
+  playerRow,
+  avatar,
+  playerName,
+  playerSub,
+  creditsVal,
+  creditsLabel,
+  actionBar,
+  resetBtn,
+  primaryBtn,
+  ROLE_COLORS,
+  loadingStyle,
+} from "@/components/tg/match-styles";
 
 export default function SectionPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -16,7 +32,6 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const [combination, setCombination] = useState({ wk: 1, bat: 4, ar: 3, bowl: 3 });
   const [teamCount, setTeamCount] = useState(5);
   const [lineupOut, setLineupOut] = useState(false);
 
@@ -30,11 +45,8 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
       .then((r) => r.json())
       .then((d) => {
         if (d?.players) {
-          // API already returns ONLY playing XI players when lineup is out
-          // (bench/substitute/reserve/injured/non-playing are HIDDEN)
           setPlayers(d.players);
           setLineupOut(!!d.lineupOut);
-          // Auto-select ALL players (they're all playing XI when lineup is out)
           if (d.lineupOut) {
             const autoSel: Record<string, boolean> = {};
             d.players.forEach((p: any) => {
@@ -81,17 +93,14 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
       alert("Select exactly 11 players");
       return;
     }
-    // Store the selected player pool for generation pages to use
     storePlayerPool(matchId, selectedPlayers);
     router.push(`/match/${matchId}/smart`);
   };
 
   if (!matchId) {
     return (
-      <div className="tg-app">
-        <div style={{ padding: 40, textAlign: "center", color: "#6c757d" }}>
-          Loading…
-        </div>
+      <div className="ac-app">
+        <div style={loadingStyle}>Loading…</div>
       </div>
     );
   }
@@ -100,39 +109,49 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
     <MatchShell matchId={matchId} active="section">
       {/* Lineup status banner */}
       {lineupOut && (
-        <div style={{
-          background: "linear-gradient(90deg, #00b050, #0066ff)",
-          color: "#fff",
-          padding: "8px 12px",
-          borderRadius: 6,
-          marginBottom: 10,
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          fontSize: 12,
-          fontWeight: 700,
-        }}>
-          ✅ LINEUPS OUT — STRICT MODE: Only {players.length} Playing XI players shown. Bench/substitute/reserve/injured HIDDEN.
+        <div
+          style={{
+            background: "linear-gradient(90deg, rgba(16,185,129,0.2), rgba(6,182,212,0.2))",
+            border: "1px solid rgba(52,211,153,0.4)",
+            color: "#34d399",
+            padding: "10px 14px",
+            borderRadius: 12,
+            marginBottom: 12,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 12,
+            fontWeight: 700,
+          }}
+        >
+          <CheckCircle2 size={16} />
+          LINEUPS OUT — STRICT MODE: Only {players.length} Playing XI players shown. Bench/substitute/reserve/injured HIDDEN.
         </div>
       )}
 
+      {/* Header */}
+      <div style={cardStyle}>
+        <div style={sectionTitle}>
+          <Layers size={16} color="#34d399" />
+          Player Selection
+        </div>
+        <p style={subtitle}>
+          Select exactly <b style={{ color: "#34d399" }}>11 players</b> from the playing XI.
+          These form the pool for AI team generation.
+        </p>
+      </div>
+
       {/* Top stats bar */}
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          marginBottom: 12,
-        }}
-      >
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <div style={statBox}>
-          <Users size={14} color="#0066ff" />
+          <Users size={16} color="#06b6d4" />
           <div>
             <div style={statNum}>{selectedPlayers.length}/11</div>
-            <div style={statLabel}>Players Selected</div>
+            <div style={statLabel}>Players</div>
           </div>
         </div>
         <div style={statBox}>
-          <Coins size={14} color="#28a745" />
+          <Coins size={16} color="#34d399" />
           <div>
             <div style={statNum}>{creditsLeft}</div>
             <div style={statLabel}>Credits Left</div>
@@ -147,32 +166,29 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
       </div>
 
       {/* Role count display */}
-      <div
-        style={{
-          display: "flex",
-          gap: 4,
-          marginBottom: 12,
-          fontSize: 11,
-          fontWeight: 600,
-        }}
-      >
-        {ROLE_LABELS.map((r, i) => (
-          <div
-            key={r}
-            style={{
-              flex: 1,
-              background: ROLE_BG[i],
-              color: ROLE_COLORS[i],
-              padding: "6px 4px",
-              borderRadius: 6,
-              textAlign: "center",
-            }}
-          >
-            {r}: {counts[
-              i === 0 ? "wk" : i === 1 ? "bat" : i === 2 ? "ar" : "bowl"
-            ]}
-          </div>
-        ))}
+      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+        {ROLE_LABELS.map((r, i) => {
+          const count = counts[i === 0 ? "wk" : i === 1 ? "bat" : i === 2 ? "ar" : "bowl"];
+          return (
+            <div
+              key={r}
+              style={{
+                flex: 1,
+                background: `${ROLE_COLORS[i]}1A`,
+                border: `1px solid ${ROLE_COLORS[i]}44`,
+                color: ROLE_COLORS[i],
+                padding: "8px 4px",
+                borderRadius: 10,
+                textAlign: "center",
+                fontSize: 11,
+                fontWeight: 700,
+              }}
+            >
+              <div style={{ fontSize: 16, fontWeight: 800 }}>{count}</div>
+              <div style={{ fontSize: 9, opacity: 0.8 }}>{r}</div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Team split */}
@@ -182,14 +198,19 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
           justifyContent: "space-between",
           marginBottom: 12,
           fontSize: 12,
-          padding: "6px 10px",
-          background: "#fff",
-          borderRadius: 6,
-          boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+          fontWeight: 600,
+          padding: "10px 14px",
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 12,
         }}
       >
-        <span>Left: <strong>{leftCount}</strong></span>
-        <span>Right: <strong>{rightCount}</strong></span>
+        <span style={{ color: "#8a94b3" }}>
+          Team A: <strong style={{ color: "#06b6d4" }}>{leftCount}</strong>
+        </span>
+        <span style={{ color: "#8a94b3" }}>
+          Team B: <strong style={{ color: "#f43f5e" }}>{rightCount}</strong>
+        </span>
       </div>
 
       {/* Team count selector */}
@@ -199,21 +220,26 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
           alignItems: "center",
           gap: 8,
           marginBottom: 12,
-          padding: "8px 10px",
-          background: "#fff",
-          borderRadius: 6,
-          boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+          padding: "10px 14px",
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 12,
         }}
       >
-        <label style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>Team Count</label>
+        <label style={{ fontSize: 13, fontWeight: 700, flex: 1, color: "#e8eefc" }}>
+          Team Count
+        </label>
         <select
           value={teamCount}
           onChange={(e) => setTeamCount(parseInt(e.target.value, 10))}
           style={{
-            padding: "4px 8px",
-            borderRadius: 4,
-            border: "1px solid #ddd",
+            padding: "6px 10px",
+            borderRadius: 8,
+            background: "#0d1428",
+            color: "#e8eefc",
+            border: "1px solid rgba(255,255,255,0.1)",
             fontSize: 13,
+            fontWeight: 700,
           }}
         >
           {[1, 2, 5, 10, 15, 20].map((n) => (
@@ -226,99 +252,61 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
 
       {/* Players by role */}
       {loading ? (
-        <div style={{ textAlign: "center", padding: 20, color: "#6c757d", fontSize: 13 }}>
-          Loading players…
-        </div>
+        <div style={loadingStyle}>Loading players…</div>
       ) : (
         ROLE_LABELS.map((role, ri) => {
           const rolePlayers = players.filter((p) => p.role === ri);
+          const roleColor = ROLE_COLORS[ri];
           return (
-            <div key={role} style={{ marginBottom: 14 }}>
+            <div key={role} style={{ marginBottom: 16 }}>
               <div
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  padding: "6px 4px",
-                  borderBottom: `2px solid ${ROLE_COLORS[ri]}`,
+                  padding: "8px 4px",
+                  borderBottom: `2px solid ${roleColor}`,
+                  marginBottom: 8,
                 }}
               >
-                <span style={{ fontSize: 13, fontWeight: 700, color: ROLE_COLORS[ri] }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: roleColor }}>
                   {ROLE_FULL[ri]} ({role})
                 </span>
-                <span style={{ fontSize: 11, color: "#6c757d" }}>
+                <span style={{ fontSize: 11, color: "#8a94b3" }}>
                   {rolePlayers.length} players
                 </span>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {rolePlayers.map((p) => {
                   const isSel = !!selected[p.id];
+                  const teamBg = p.team === "left" ? "#06b6d4" : "#f43f5e";
                   return (
                     <button
                       key={p.id}
                       onClick={() => toggle(p)}
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "8px 10px",
-                        background: isSel ? ROLE_BG[ri] : "#fff",
-                        border: isSel
-                          ? `1px solid ${ROLE_COLORS[ri]}`
-                          : "1px solid #eee",
-                        borderRadius: 6,
-                        cursor: "pointer",
-                        textAlign: "left",
-                        fontSize: 13,
+                        ...playerRow(isSel, roleColor),
                         opacity: (p as any).playing === false ? 0.5 : 1,
                       }}
                     >
-                      <div
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: "50%",
-                          background: p.team === "left" ? "#0066ff" : "#dc3545",
-                          color: "#fff",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 11,
-                          fontWeight: 700,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {p.name.charAt(0)}
+                      <div style={avatar(isSel ? roleColor : teamBg)}>
+                        {isSel ? "✓" : p.name.charAt(0)}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div
-                          style={{
-                            fontWeight: 600,
-                            color: "#212529",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {p.name}
-                        </div>
-                        <div style={{ fontSize: 10, color: "#6c757d" }}>
+                        <div style={playerName}>{p.name}</div>
+                        <div style={playerSub}>
                           {p.team === "left" ? "Team A" : "Team B"} · Sel {p.selBy}%
-                          {(p as any).playing === true && <span style={{ color: "#00b050", fontWeight: 700 }}> · ✅ Playing</span>}
-                          {(p as any).playing === false && <span style={{ color: "#dc3545", fontWeight: 700 }}> · ❌ Bench</span>}
+                          {(p as any).playing === true && (
+                            <span style={{ color: "#34d399", fontWeight: 700 }}> · ✅ Playing</span>
+                          )}
+                          {(p as any).playing === false && (
+                            <span style={{ color: "#f43f5e", fontWeight: 700 }}> · ❌ Bench</span>
+                          )}
                         </div>
                       </div>
                       <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div
-                          style={{
-                            fontWeight: 700,
-                            color: "#0066ff",
-                            fontSize: 13,
-                          }}
-                        >
-                          {p.credits}
-                        </div>
-                        <div style={{ fontSize: 9, color: "#999" }}>cr</div>
+                        <div style={creditsVal}>{p.credits}</div>
+                        <div style={creditsLabel}>cr</div>
                       </div>
                     </button>
                   );
@@ -330,52 +318,13 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
       )}
 
       {/* Bottom action bar */}
-      <div
-        style={{
-          position: "sticky",
-          bottom: 60,
-          left: 0,
-          right: 0,
-          background: "#fff",
-          padding: "10px",
-          borderTop: "1px solid #eee",
-          display: "flex",
-          gap: 8,
-          zIndex: 20,
-        }}
-      >
-        <button
-          onClick={() => setSelected({})}
-          style={{
-            flex: 1,
-            padding: "10px",
-            border: "1px solid #ddd",
-            background: "#fff",
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
-            color: "#6c757d",
-            cursor: "pointer",
-          }}
-        >
+      <div style={actionBar}>
+        <button onClick={() => setSelected({})} style={resetBtn}>
           Reset
         </button>
         <button
           onClick={continueToSmart}
-          className="btn-tg-success"
-          style={{
-            flex: 2,
-            padding: "10px",
-            border: "none",
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 700,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 4,
-            cursor: "pointer",
-          }}
+          style={primaryBtn(selectedPlayers.length !== 11)}
           disabled={selectedPlayers.length !== 11}
         >
           Continue <ChevronRight size={16} />
@@ -384,25 +333,3 @@ export default function SectionPage({ params }: { params: Promise<{ id: string }
     </MatchShell>
   );
 }
-
-const statBox: React.CSSProperties = {
-  flex: 1,
-  background: "#fff",
-  borderRadius: 6,
-  padding: "8px 10px",
-  display: "flex",
-  alignItems: "center",
-  gap: 6,
-  boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-};
-const statNum: React.CSSProperties = {
-  fontSize: 16,
-  fontWeight: 800,
-  color: "#212529",
-  lineHeight: 1,
-};
-const statLabel: React.CSSProperties = {
-  fontSize: 9,
-  color: "#6c757d",
-  marginTop: 2,
-};

@@ -1,0 +1,12 @@
+// ====== Firebase Storage Rules ======
+// Copy to: Firebase Console → Storage → Rules
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Default: deny all access (server-side only)
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

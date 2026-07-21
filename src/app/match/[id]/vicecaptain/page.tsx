@@ -2,9 +2,24 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Star, ChevronRight } from "lucide-react";
+import { Medal, ChevronRight } from "lucide-react";
 import { MatchShell } from "@/components/tg/match-shell";
 import { ROLE_LABELS, type Player } from "@/lib/players";
+import {
+  cardStyle,
+  sectionTitle,
+  subtitle,
+  playerRow,
+  avatar,
+  playerName,
+  playerSub,
+  creditsVal,
+  creditsLabel,
+  actionBar,
+  resetBtn,
+  primaryBtn,
+  loadingStyle,
+} from "@/components/tg/match-styles";
 
 export default function ViceCaptainPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -37,113 +52,82 @@ export default function ViceCaptainPage({ params }: { params: Promise<{ id: stri
   };
 
   return (
-    <MatchShell matchId={matchId || "nz-sco-wt20"} active="vicecaptain">
-      <div
-        style={{
-          background: "#fff",
-          borderRadius: 8,
-          padding: 14,
-          marginBottom: 12,
-          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-        }}
-      >
-        <h3
-          style={{
-            fontSize: 15,
-            fontWeight: 700,
-            color: "#0066ff",
-            marginBottom: 8,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <Star size={16} /> Vice Captain Selection
-        </h3>
-        <p style={{ fontSize: 12, color: "#6c757d", marginBottom: 12 }}>
-          Select 2 or more players for vice captain. These will be used as VC
-          pool across generated teams.
+    <MatchShell matchId={matchId || "loading"} active="vicecaptain">
+      {/* Header */}
+      <div style={cardStyle}>
+        <div style={sectionTitle}>
+          <Medal size={16} color="#8b5cf6" />
+          Vice Captain Selection
+        </div>
+        <p style={subtitle}>
+          Select 2 or more players for <b style={{ color: "#8b5cf6" }}>vice captain</b>.
+          These will be used as the VC pool across generated teams.
         </p>
 
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
-          VC Count: <span style={{ color: "#0066ff" }}>{vcIds.length}/{vcCount}</span>
+        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: "#e8eefc" }}>
+          VC Count:{" "}
+          <span style={{ color: "#8b5cf6" }}>
+            {vcIds.length}/{vcCount}
+          </span>
         </div>
-        <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
-          {[2, 3, 5, 8].map((n) => (
-            <button
-              key={n}
-              onClick={() => setVcCount(n)}
-              style={{
-                flex: 1,
-                padding: "6px 0",
-                border: vcCount === n ? "1px solid #0066ff" : "1px solid #ddd",
-                background: vcCount === n ? "#0066ff" : "#fff",
-                color: vcCount === n ? "#fff" : "#6c757d",
-                borderRadius: 4,
-                fontSize: 11,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              {n}
-            </button>
-          ))}
+        <div style={{ display: "flex", gap: 6 }}>
+          {[2, 3, 5, 8].map((n) => {
+            const active = vcCount === n;
+            return (
+              <button
+                key={n}
+                onClick={() => setVcCount(n)}
+                style={{
+                  flex: 1,
+                  padding: "8px 4px",
+                  border: active
+                    ? "1px solid rgba(139,92,246,0.5)"
+                    : "1px solid rgba(255,255,255,0.08)",
+                  background: active
+                    ? "linear-gradient(135deg, rgba(139,92,246,0.25), rgba(139,92,246,0.15))"
+                    : "rgba(255,255,255,0.03)",
+                  color: active ? "#8b5cf6" : "#8a94b3",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                {n}
+              </button>
+            );
+          })}
         </div>
       </div>
 
+      {/* Player list */}
       {loading ? (
-        <div style={{ textAlign: "center", padding: 20, color: "#6c757d", fontSize: 13 }}>
-          Loading players…
-        </div>
+        <div style={loadingStyle}>Loading players…</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {players
             .sort((a, b) => b.selBy - a.selBy)
             .map((p) => {
               const isVC = vcIds.includes(p.id);
+              const teamBg = p.team === "left" ? "#06b6d4" : "#f43f5e";
               return (
                 <button
                   key={p.id}
                   onClick={() => toggle(p)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "10px 12px",
-                    background: isVC ? "#d4edda" : "#fff",
-                    border: isVC ? "1px solid #28a745" : "1px solid #eee",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                    textAlign: "left",
-                  }}
+                  style={playerRow(isVC, "#8b5cf6")}
                 >
-                  <div
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: "50%",
-                      background: isVC ? "#28a745" : p.team === "left" ? "#0066ff" : "#dc3545",
-                      color: "#fff",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {isVC ? "VC" : p.name.charAt(0)}
+                  <div style={avatar(isVC ? "#8b5cf6" : teamBg)}>
+                    {isVC ? "🥈" : p.name.charAt(0)}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#212529" }}>
-                      {p.name}
-                    </div>
-                    <div style={{ fontSize: 10, color: "#6c757d" }}>
+                    <div style={playerName}>{p.name}</div>
+                    <div style={playerSub}>
                       {ROLE_LABELS[p.role]} · Sel {p.selBy}%
                     </div>
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#0066ff" }}>
-                    {p.credits} cr
+                  <div style={{ textAlign: "right" }}>
+                    <div style={creditsVal}>{p.credits}</div>
+                    <div style={creditsLabel}>cr</div>
                   </div>
                 </button>
               );
@@ -151,52 +135,14 @@ export default function ViceCaptainPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-      <div
-        style={{
-          position: "sticky",
-          bottom: 60,
-          background: "#fff",
-          padding: 10,
-          borderTop: "1px solid #eee",
-          display: "flex",
-          gap: 8,
-          zIndex: 20,
-        }}
-      >
-        <button
-          onClick={() => setVcIds([])}
-          style={{
-            flex: 1,
-            padding: "10px",
-            border: "1px solid #ddd",
-            background: "#fff",
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
-            color: "#6c757d",
-            cursor: "pointer",
-          }}
-        >
+      {/* Action bar */}
+      <div style={actionBar}>
+        <button onClick={() => setVcIds([])} style={resetBtn}>
           Reset
         </button>
         <button
           onClick={() => router.push(`/match/${matchId}/combination`)}
-          className="btn-tg-primary"
-          style={{
-            flex: 2,
-            padding: "10px",
-            border: "none",
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 700,
-            color: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 4,
-            cursor: "pointer",
-            opacity: vcIds.length < 2 ? 0.5 : 1,
-          }}
+          style={primaryBtn(vcIds.length < 2)}
           disabled={vcIds.length < 2}
         >
           Continue <ChevronRight size={16} />

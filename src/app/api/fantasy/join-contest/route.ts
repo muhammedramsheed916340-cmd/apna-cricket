@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { verifyLicenseKey } from "@/lib/license-verify";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,17 @@ const BACKEND = "https://tgsoftware-api.online";
 // Mirrors original: POST /api/{platform}/contest/join-contest
 export async function POST(req: Request) {
   try {
+    // ====== SERVER-SIDE LICENSE VERIFICATION (mandatory) ======
+    const cookieStore = await cookies();
+    const licenseKey = cookieStore.get("tg_license_key")?.value || "";
+    const licenseCheck = verifyLicenseKey(licenseKey);
+    if (!licenseCheck.authorized) {
+      return NextResponse.json(
+        { status: "fail", error: licenseCheck.error, code: licenseCheck.code },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     let { fantasyApp = "dream11", matchId, authToken, contestId, teamIds, userToken } = body;
 

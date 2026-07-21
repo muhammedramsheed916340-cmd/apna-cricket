@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { verifyLicenseKey } from "@/lib/license-verify";
 
 export const dynamic = "force-dynamic";
 
@@ -83,6 +84,17 @@ interface TransferReq {
 
 export async function POST(req: Request) {
   try {
+    // ====== SERVER-SIDE LICENSE VERIFICATION (mandatory) ======
+    const cookieStore = await cookies();
+    const licenseKey = cookieStore.get("tg_license_key")?.value || "";
+    const licenseCheck = verifyLicenseKey(licenseKey);
+    if (!licenseCheck.authorized) {
+      return NextResponse.json(
+        { status: "fail", error: licenseCheck.error, code: licenseCheck.code },
+        { status: 403 }
+      );
+    }
+
     const body = (await req.json().catch(() => ({}))) as TransferReq;
     let {
       authToken,
@@ -221,11 +233,14 @@ export async function POST(req: Request) {
 
     for (const endpointUrl of endpointChain) {
       try {
-        // ALWAYS send Authorization header (matching original source)
+        // Only send Authorization header when a real Bearer token exists.
+        // Sending "Bearer " (empty) causes backend to treat it as invalid token.
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${bearerToken}`,
         };
+        if (bearerToken && bearerToken.trim().length > 10) {
+          headers["Authorization"] = `Bearer ${bearerToken}`;
+        }
 
         const res = await fetch(endpointUrl, {
           method: "POST",

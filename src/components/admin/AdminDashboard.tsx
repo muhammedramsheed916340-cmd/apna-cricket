@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Key, Smartphone, Users, FileText, Settings, Megaphone, BarChart3, Plus, Trash2, Ban, CheckCircle2, Clock, RefreshCw, KeyRound, Save, Eraser } from "lucide-react";
+import { X, Key, Smartphone, Users, FileText, Settings, Megaphone, BarChart3, Plus, Trash2, Ban, CheckCircle2, Clock, RefreshCw, KeyRound, Save, Eraser, Gift, Copy, CloudUpload, Database } from "lucide-react";
 
 const ADMIN_PASS = "8950888988";
 
-type Tab = "dashboard" | "licenses" | "devices" | "users" | "logs" | "settings" | "announcements" | "jwt";
+type Tab = "dashboard" | "licenses" | "devices" | "users" | "logs" | "settings" | "announcements" | "jwt" | "freeoffer";
 
 export function AdminDashboard({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -23,39 +23,53 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
   const [search, setSearch] = useState("");
   const [jwtToken, setJwtToken] = useState("");
   const [jwtSaved, setJwtSaved] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string>("");
 
   const fetchStats = async () => {
-    const res = await fetch("/api/admin/stats");
+    const res = await fetch("/api/admin/stats", {
+      headers: { Authorization: `Bearer ${ADMIN_PASS}` },
+    });
     const d = await res.json();
     if (d.stats) setStats(d.stats);
   };
 
   const fetchKeys = async () => {
-    const res = await fetch("/api/license/list");
+    const res = await fetch("/api/license/list", {
+      headers: { Authorization: `Bearer ${ADMIN_PASS}` },
+    });
     const d = await res.json();
     if (d.keys) setKeys(d.keys);
   };
 
   const fetchDevices = async () => {
-    const res = await fetch("/api/admin/devices");
+    const res = await fetch("/api/admin/devices", {
+      headers: { Authorization: `Bearer ${ADMIN_PASS}` },
+    });
     const d = await res.json();
     if (d.devices) setDevices(d.devices);
   };
 
   const fetchUsers = async () => {
-    const res = await fetch("/api/admin/users");
+    const res = await fetch("/api/admin/users", {
+      headers: { Authorization: `Bearer ${ADMIN_PASS}` },
+    });
     const d = await res.json();
     if (d.users) setUsers(d.users);
   };
 
   const fetchLogs = async () => {
-    const res = await fetch(`/api/admin/logs?filter=${logFilter}`);
+    const res = await fetch(`/api/admin/logs?filter=${logFilter}`, {
+      headers: { Authorization: `Bearer ${ADMIN_PASS}` },
+    });
     const d = await res.json();
     if (d.logs) setLogs(d.logs);
   };
 
   const fetchSettings = async () => {
-    const res = await fetch("/api/admin/settings");
+    const res = await fetch("/api/admin/settings", {
+      headers: { Authorization: `Bearer ${ADMIN_PASS}` },
+    });
     const d = await res.json();
     if (d.settings) setSettings(d.settings);
   };
@@ -68,20 +82,89 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
   useEffect(() => { if (tab === "settings") fetchSettings(); }, [tab]);
   useEffect(() => {
     if (tab === "jwt") {
-      try { setJwtToken(localStorage.getItem("user_token") || ""); } catch {}
+      // Fetch JWT from SERVER settings (not just localStorage)
+      // JWT is stored server-side via /api/admin/settings
+      const fetchJwt = async () => {
+        try {
+          const res = await fetch("/api/admin/settings", {
+            headers: { Authorization: `Bearer ${ADMIN_PASS}` },
+          });
+          const d = await res.json();
+          if (d.settings) {
+            const serverJwt = d.settings.jwt_token || d.settings.user_token || "";
+            if (serverJwt) {
+              setJwtToken(serverJwt);
+              // Also sync to localStorage
+              try { localStorage.setItem("user_token", serverJwt); } catch {}
+            } else {
+              // Fallback to localStorage
+              setJwtToken(localStorage.getItem("user_token") || "");
+            }
+          }
+        } catch {
+          // Fallback to localStorage on error
+          try { setJwtToken(localStorage.getItem("user_token") || ""); } catch {}
+        }
+      };
+      fetchJwt();
     }
   }, [tab]);
 
   const generateKeys = async () => {
     setLoading(true);
+    setGenResult([]);
     const res = await fetch("/api/license/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ count: genCount, plan: genPlan, adminPassword: ADMIN_PASS }),
     });
     const d = await res.json();
-    if (d.keys) { setGenResult(d.keys); fetchKeys(); fetchStats(); }
+    if (d.keys && d.keys.length > 0) {
+      setGenResult(d.keys);
+      fetchKeys();
+      fetchStats();
+    } else if (d.error) {
+      alert("Generate failed: " + d.error);
+    }
     setLoading(false);
+  };
+
+  // ====== Firebase Sync — upload all keys to Firestore ======
+  const handleFirebaseSync = async () => {
+    setSyncing(true);
+    setSyncResult("");
+    try {
+      const res = await fetch("/api/admin/firebase-sync", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${ADMIN_PASS}` },
+      });
+      const d = await res.json();
+      if (d.status === "success") {
+        setSyncResult(`✅ Synced: ${d.synced}/${d.total}${d.failed > 0 ? ` · Failed: ${d.failed}` : ""}`);
+      } else {
+        setSyncResult(`❌ Sync failed: ${d.error || "unknown"}`);
+      }
+    } catch (e) {
+      setSyncResult(`❌ Error: ${(e as Error).message}`);
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncResult(""), 5000);
+    }
+  };
+
+  // ====== Copy key to clipboard ======
+  const copyKey = (key: string) => {
+    try {
+      navigator.clipboard.writeText(key);
+    } catch {
+      // Fallback for older browsers
+      const textarea = document.createElement("textarea");
+      textarea.value = key;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
   };
 
   const keyAction = async (action: string, key: string, days?: number) => {
@@ -119,12 +202,20 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
       } else {
         localStorage.removeItem("user_token");
       }
-      // Also persist server-side via settings API so it survives across devices
+      // Save to server settings (Firestore source of truth)
       await fetch("/api/admin/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ key: "jwt_token", value: token, adminPassword: ADMIN_PASS }),
       });
+      // Also sync to Firestore settings collection
+      try {
+        const { saveSettingsToFirestore } = await import("@/lib/firestore-collections");
+        await saveSettingsToFirestore("jwt_token", token);
+        console.log("[JWT] Saved to Firestore settings collection");
+      } catch (e) {
+        console.warn("[JWT] Firestore sync failed (non-blocking):", e);
+      }
       setJwtSaved(true);
       setTimeout(() => setJwtSaved(false), 2500);
     } catch (e) {
@@ -159,6 +250,7 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
     { id: "settings", label: "Settings", icon: Settings },
     { id: "announcements", label: "Announce", icon: Megaphone },
     { id: "jwt", label: "JWT Token", icon: KeyRound },
+    { id: "freeoffer", label: "Free Offer", icon: Gift },
   ];
 
   const statCards = [
@@ -236,16 +328,36 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
               </button>
               {genResult.length > 0 && (
                 <div style={{ marginTop: 8, background: "#111", borderRadius: 4, padding: 8, maxHeight: 150, overflowY: "auto" }}>
-                  {genResult.map((k, i) => <div key={i} style={{ fontSize: 11, color: "#00b050", fontFamily: "monospace", padding: "2px 0" }}>{k}</div>)}
+                  {genResult.map((k, i) => (
+                    <div key={k || `gen-${i}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "#00b050", fontFamily: "monospace", padding: "2px 0" }}>
+                      <span>{k}</span>
+                      <button onClick={() => copyKey(k)} style={{ padding: "2px 6px", background: "#333", border: "none", borderRadius: 3, fontSize: 9, color: "#fff", cursor: "pointer" }}>📋</button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
+            {/* Firebase Sync buttons */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+              <button onClick={handleFirebaseSync} disabled={syncing} style={{ flex: 1, padding: "8px", background: "#0066ff", border: "none", borderRadius: 4, color: "#fff", fontSize: 11, fontWeight: 700, cursor: syncing ? "wait" : "pointer", opacity: syncing ? 0.6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                {syncing ? <><RefreshCw size={12} className="animate-spin" /> Syncing…</> : <><CloudUpload size={12} /> 💾 Save to Firebase</>}
+              </button>
+              <button onClick={handleFirebaseSync} disabled={syncing} style={{ flex: 1, padding: "8px", background: "#17a2b8", border: "none", borderRadius: 4, color: "#fff", fontSize: 11, fontWeight: 700, cursor: syncing ? "wait" : "pointer", opacity: syncing ? 0.6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                <Database size={12} /> 🔄 Firebase Sync
+              </button>
+            </div>
+            {syncResult && <div style={{ marginBottom: 8, padding: 6, background: "#111", borderRadius: 4, fontSize: 10, color: syncResult.startsWith("✅") ? "#00b050" : "#dc3545", textAlign: "center" }}>{syncResult}</div>}
             {/* Key list */}
             <div style={{ background: "#0a0a0a", border: "1px solid #222", borderRadius: 8, padding: 10, maxHeight: 400, overflowY: "auto" }}>
-              {keys.map(k => (
-                <div key={k.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #1a1a1a" }}>
+              {keys.map((k, idx) => {
+                const itemKey = k.id || k.key || `key-${idx}`;
+                return (
+                <div key={itemKey} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #1a1a1a" }}>
                   <div>
-                    <div style={{ fontSize: 11, fontFamily: "monospace", color: "#0066ff" }}>{k.key}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ fontSize: 11, fontFamily: "monospace", color: "#0066ff" }}>{k.key}</span>
+                      <button onClick={() => copyKey(k.key)} style={{ padding: "1px 4px", background: "#333", border: "none", borderRadius: 2, fontSize: 8, color: "#fff", cursor: "pointer" }}>📋</button>
+                    </div>
                     <div style={{ fontSize: 9, color: "#666" }}>{k.plan} · {k.status} · {k.deviceFp ? "bound" : "free"}</div>
                   </div>
                   <div style={{ display: "flex", gap: 4 }}>
@@ -259,7 +371,8 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
                     <button onClick={() => keyAction("delete", k.key)} style={{ padding: "3px 6px", background: "#dc3545", border: "none", borderRadius: 3, fontSize: 9, color: "#fff", cursor: "pointer" }}>Del</button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
               {keys.length === 0 && <div style={{ textAlign: "center", color: "#666", fontSize: 12, padding: 20 }}>No keys yet</div>}
             </div>
           </div>
@@ -270,14 +383,17 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
           <div>
             <input type="text" placeholder="Search by key or device..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: "100%", padding: "8px", background: "#111", border: "1px solid #333", borderRadius: 4, color: "#fff", fontSize: 12, marginBottom: 10 }} />
             <div style={{ background: "#0a0a0a", border: "1px solid #222", borderRadius: 8, padding: 10, maxHeight: 400, overflowY: "auto" }}>
-              {filteredDevices.map((d, i) => (
-                <div key={i} style={{ padding: "6px 0", borderBottom: "1px solid #1a1a1a" }}>
+              {filteredDevices.map((d, idx) => {
+                const devKey = d.key || d.deviceFp || `dev-${idx}`;
+                return (
+                <div key={devKey} style={{ padding: "6px 0", borderBottom: "1px solid #1a1a1a" }}>
                   <div style={{ fontSize: 11, color: "#0066ff", fontFamily: "monospace" }}>{d.key}</div>
                   <div style={{ fontSize: 9, color: "#888" }}>Device: {d.deviceFp?.substring(0, 20)}... · {d.plan} · {d.status}</div>
                   <div style={{ fontSize: 9, color: "#666" }}>Bound: {d.boundAt ? new Date(d.boundAt).toLocaleDateString() : "N/A"}</div>
                   <button onClick={() => keyAction("reset_device", d.key)} style={{ marginTop: 4, padding: "3px 8px", background: "#dc3545", border: "none", borderRadius: 3, fontSize: 9, color: "#fff", cursor: "pointer" }}>Unbind</button>
                 </div>
-              ))}
+                );
+              })}
               {filteredDevices.length === 0 && <div style={{ textAlign: "center", color: "#666", fontSize: 12, padding: 20 }}>No devices</div>}
             </div>
           </div>
@@ -286,8 +402,10 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
         {/* Users Tab */}
         {tab === "users" && (
           <div style={{ background: "#0a0a0a", border: "1px solid #222", borderRadius: 8, padding: 10, maxHeight: 500, overflowY: "auto" }}>
-            {users.map(u => (
-              <div key={u.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #1a1a1a" }}>
+            {users.map((u, idx) => {
+              const userKey = u.id || u.email || u.name || `user-${idx}`;
+              return (
+              <div key={userKey} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #1a1a1a" }}>
                 <div>
                   <div style={{ fontSize: 11, color: "#fff" }}>{u.name || u.email}</div>
                   <div style={{ fontSize: 9, color: u.banned ? "#dc3545" : "#00b050" }}>{u.banned ? "BANNED" : "Active"} · {u.licenseKey || "No license"}</div>
@@ -297,7 +415,8 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
                   <button onClick={() => userAction("delete", u.id)} style={{ padding: "3px 6px", background: "#666", border: "none", borderRadius: 3, fontSize: 9, color: "#fff", cursor: "pointer" }}>Del</button>
                 </div>
               </div>
-            ))}
+              );
+            })}
             {users.length === 0 && <div style={{ textAlign: "center", color: "#666", fontSize: 12, padding: 20 }}>No users</div>}
           </div>
         )}
@@ -352,8 +471,40 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
         {/* JWT Token Tab */}
         {tab === "jwt" && (
           <div style={{ background: "#0a0a0a", border: "1px solid #0066ff40", borderRadius: 8, padding: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#0066ff", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
-              <KeyRound size={16} /> JWT Token / Bearer Auth
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#0066ff", marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <KeyRound size={16} /> JWT Token / Bearer Auth
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/admin/settings", {
+                      headers: { Authorization: `Bearer ${ADMIN_PASS}` },
+                    });
+                    const d = await res.json();
+                    if (d.settings) {
+                      const serverJwt = d.settings.jwt_token || d.settings.user_token || "";
+                      setJwtToken(serverJwt);
+                      if (serverJwt) { try { localStorage.setItem("user_token", serverJwt); } catch {} }
+                    }
+                  } catch {}
+                }}
+                style={{
+                  padding: "4px 10px",
+                  background: "#111",
+                  border: "1px solid #333",
+                  borderRadius: 4,
+                  color: "#34d399",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <RefreshCw size={11} /> Refresh
+              </button>
             </div>
             <p style={{ fontSize: 11, color: "#888", marginBottom: 14, lineHeight: 1.5 }}>
               This token is sent as <code style={{ color: "#34d399" }}>Authorization: Bearer &lt;token&gt;</code> header
@@ -453,6 +604,9 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         )}
+
+        {/* Free Offer Key Tab */}
+        {tab === "freeoffer" && <FreeOfferTab />}
       </div>
     </div>
   );
@@ -460,6 +614,113 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
 
 function Shield2() {
   return <span style={{ fontSize: 18 }}>🛡️</span>;
+}
+
+// ====== Free Offer Key Tab ======
+function FreeOfferTab() {
+  const [offerKeys, setOfferKeys] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [validityHours, setValidityHours] = useState(24);
+  const [maxUsers, setMaxUsers] = useState(100);
+  const [generatedKey, setGeneratedKey] = useState("");
+
+  const fetchKeys = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/free-offer-generate?adminPassword=${ADMIN_PASS}`);
+      const d = await res.json();
+      if (d.keys) setOfferKeys(d.keys);
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchKeys(); }, []);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/admin/free-offer-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminPassword: ADMIN_PASS, validityHours, maxUsers }),
+      });
+      const d = await res.json();
+      if (d.status === "success") {
+        setGeneratedKey(d.key);
+        fetchKeys();
+      }
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleDelete = async (key: string) => {
+    await fetch("/api/admin/free-offer-generate", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminPassword: ADMIN_PASS, key }),
+    });
+    fetchKeys();
+  };
+
+  return (
+    <div style={{ background: "#0a0a0a", border: "1px solid #222", borderRadius: 8, padding: 14 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#0066ff", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+        <Gift size={16} /> 🎁 Generate Free Offer Key
+      </div>
+      <p style={{ fontSize: 11, color: "#666", marginBottom: 12 }}>
+        Generate a free offer key that unlocks PRO features for 24 hours. Max 100 users.
+      </p>
+
+      {/* Config */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: 10, color: "#888", display: "block", marginBottom: 4 }}>Validity (hours)</label>
+          <input type="number" value={validityHours} onChange={e => setValidityHours(parseInt(e.target.value) || 24)} min={1} max={720} style={{ width: "100%", padding: "6px", background: "#111", border: "1px solid #333", borderRadius: 4, color: "#fff", fontSize: 12 }} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: 10, color: "#888", display: "block", marginBottom: 4 }}>Max Users</label>
+          <input type="number" value={maxUsers} onChange={e => setMaxUsers(parseInt(e.target.value) || 100)} min={1} max={1000} style={{ width: "100%", padding: "6px", background: "#111", border: "1px solid #333", borderRadius: 4, color: "#fff", fontSize: 12 }} />
+        </div>
+      </div>
+
+      <button onClick={handleGenerate} disabled={generating} style={{ width: "100%", padding: "10px", background: "#00b050", border: "none", borderRadius: 6, color: "#fff", fontSize: 12, fontWeight: 700, cursor: generating ? "wait" : "pointer", marginBottom: 10 }}>
+        {generating ? "Generating…" : "🎁 Generate Free Offer Key"}
+      </button>
+
+      {generatedKey && (
+        <div style={{ background: "#0d2818", border: "1px solid #00b050", borderRadius: 6, padding: 10, marginBottom: 10 }}>
+          <div style={{ fontSize: 10, color: "#00b050", marginBottom: 4 }}>✅ Generated Key:</div>
+          <div style={{ fontSize: 14, fontFamily: "monospace", color: "#fff", fontWeight: 700 }}>{generatedKey}</div>
+          <div style={{ fontSize: 9, color: "#888", marginTop: 4 }}>Share this key with users. Valid for {validityHours}h, max {maxUsers} activations.</div>
+        </div>
+      )}
+
+      {/* Existing keys */}
+      <div style={{ fontSize: 12, fontWeight: 700, color: "#e8eefc", marginBottom: 8, marginTop: 14 }}>Existing Free Offer Keys</div>
+      {loading ? (
+        <div style={{ textAlign: "center", color: "#666", fontSize: 12, padding: 20 }}>Loading…</div>
+      ) : offerKeys.length === 0 ? (
+        <div style={{ textAlign: "center", color: "#666", fontSize: 12, padding: 20 }}>No free offer keys yet</div>
+      ) : (
+        offerKeys.map((k, idx) => {
+          const itemKey = k.key || `offer-${idx}`;
+          return (
+            <div key={itemKey} style={{ padding: "8px 0", borderBottom: "1px solid #1a1a1a" }}>
+              <div style={{ fontSize: 11, fontFamily: "monospace", color: "#00b050", fontWeight: 700 }}>{k.key}</div>
+              <div style={{ fontSize: 9, color: "#888", marginTop: 2 }}>
+                {k.activationCount}/{k.maxUsers} activations · {k.validityHours}h · Exp: {new Date(k.expiryDate).toLocaleDateString()}
+                {k.isExpired && <span style={{ color: "#dc3545", marginLeft: 6 }}>· EXPIRED</span>}
+                {k.isFull && !k.isExpired && <span style={{ color: "#ffc107", marginLeft: 6 }}>· FULL</span>}
+              </div>
+              <button onClick={() => handleDelete(k.key)} style={{ marginTop: 4, padding: "3px 8px", background: "#dc3545", border: "none", borderRadius: 3, fontSize: 9, color: "#fff", cursor: "pointer" }}>Delete</button>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
 }
 
 function AnnouncementTab() {

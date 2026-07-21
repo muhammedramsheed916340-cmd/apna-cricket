@@ -46,9 +46,15 @@ export function LicenseProvider({ children }: { children: ReactNode }) {
       const stored = localStorage.getItem("licenseKey");
       const locallyVerified = localStorage.getItem("licenseVerified") === "true";
 
-      if (!stored) { setLoading(false); return; }
+      // SECURITY: No auto-bypass. If no license key stored, user is NOT verified.
+      // Premium features remain locked until a valid key is activated via server verification.
+      if (!stored) {
+        setVerified(false);
+        setLoading(false);
+        return;
+      }
 
-      // If already verified locally, KEEP verified — NEVER auto-logout on reload
+      // If already verified locally, verify with server (don't trust localStorage alone)
       if (locallyVerified) {
         setVerified(true);
         setLicenseKey(stored);

@@ -134,6 +134,7 @@ export async function fetchMatches(sport: string): Promise<RealMatch[]> {
   try {
     const res = await fetch(`${BACKEND_URL}/api/fantasy/matches/${sport}`, {
       next: { revalidate: 30 },
+      signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) return [];
     const json = await res.json();
@@ -177,6 +178,7 @@ export async function fetchMatchDetail(
   try {
     const res = await fetch(`${BACKEND_URL}/api/fantasy/match/${matchId}`, {
       next: { revalidate: 30 },
+      signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) return null;
     const json = await res.json();

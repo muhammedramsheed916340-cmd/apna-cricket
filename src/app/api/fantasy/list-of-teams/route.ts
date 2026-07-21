@@ -70,11 +70,11 @@ export async function POST(req: Request) {
       authToken,
     };
 
-    // My11Circle-specific fields
+    // My11Circle-specific fields (String()-convert for consistency with transfer API)
     if (fantasyApp === "my11circle") {
-      if (account.my11circleChallenge) payload.my11circleChallenge = account.my11circleChallenge;
-      if (account.my11circleUserId) payload.my11circleUserId = account.my11circleUserId;
-      if (account.mobileNumber) payload.my11circleMobile = account.mobileNumber;
+      if (account.my11circleChallenge) payload.my11circleChallenge = String(account.my11circleChallenge);
+      if (account.my11circleUserId) payload.my11circleUserId = String(account.my11circleUserId);
+      if (account.mobileNumber) payload.my11circleMobile = String(account.mobileNumber);
     }
 
     const endpoints = LIST_ENDPOINTS[fantasyApp] || DEFAULT_ENDPOINTS;
@@ -97,6 +97,7 @@ export async function POST(req: Request) {
           headers,
           body: JSON.stringify(payload),
           cache: "no-store",
+          signal: AbortSignal.timeout(15000),
         });
         const data = await res.json().catch(() => ({}));
 

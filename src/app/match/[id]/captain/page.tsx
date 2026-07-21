@@ -2,9 +2,24 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Star, ChevronRight, Plus } from "lucide-react";
+import { Crown, ChevronRight } from "lucide-react";
 import { MatchShell } from "@/components/tg/match-shell";
 import { ROLE_LABELS, type Player } from "@/lib/players";
+import {
+  cardStyle,
+  sectionTitle,
+  subtitle,
+  playerRow,
+  avatar,
+  playerName,
+  playerSub,
+  creditsVal,
+  creditsLabel,
+  actionBar,
+  resetBtn,
+  primaryBtn,
+  loadingStyle,
+} from "@/components/tg/match-styles";
 
 export default function CaptainPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -37,113 +52,82 @@ export default function CaptainPage({ params }: { params: Promise<{ id: string }
   };
 
   return (
-    <MatchShell matchId={matchId || "nz-sco-wt20"} active="captain">
-      <div
-        style={{
-          background: "#fff",
-          borderRadius: 8,
-          padding: 14,
-          marginBottom: 12,
-          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-        }}
-      >
-        <h3
-          style={{
-            fontSize: 15,
-            fontWeight: 700,
-            color: "#0066ff",
-            marginBottom: 8,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <Star size={16} /> Captain Selection
-        </h3>
-        <p style={{ fontSize: 12, color: "#6c757d", marginBottom: 12 }}>
-          Select 1 or more players for captain. These will be used as captain
-          pool across generated teams.
+    <MatchShell matchId={matchId || "loading"} active="captain">
+      {/* Header */}
+      <div style={cardStyle}>
+        <div style={sectionTitle}>
+          <Crown size={16} color="#f59e0b" />
+          Captain Selection
+        </div>
+        <p style={subtitle}>
+          Select 1 or more players for <b style={{ color: "#f59e0b" }}>captain</b>.
+          These will be used as the captain pool across generated teams.
         </p>
 
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
-          Captain Count: <span style={{ color: "#0066ff" }}>{captainIds.length}/{capCount}</span>
+        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: "#e8eefc" }}>
+          Captain Count:{" "}
+          <span style={{ color: "#f59e0b" }}>
+            {captainIds.length}/{capCount}
+          </span>
         </div>
-        <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
-          {[1, 3, 5, 8].map((n) => (
-            <button
-              key={n}
-              onClick={() => setCapCount(n)}
-              style={{
-                flex: 1,
-                padding: "6px 0",
-                border: capCount === n ? "1px solid #0066ff" : "1px solid #ddd",
-                background: capCount === n ? "#0066ff" : "#fff",
-                color: capCount === n ? "#fff" : "#6c757d",
-                borderRadius: 4,
-                fontSize: 11,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              {n}
-            </button>
-          ))}
+        <div style={{ display: "flex", gap: 6 }}>
+          {[1, 3, 5, 8].map((n) => {
+            const active = capCount === n;
+            return (
+              <button
+                key={n}
+                onClick={() => setCapCount(n)}
+                style={{
+                  flex: 1,
+                  padding: "8px 4px",
+                  border: active
+                    ? "1px solid rgba(245,158,11,0.5)"
+                    : "1px solid rgba(255,255,255,0.08)",
+                  background: active
+                    ? "linear-gradient(135deg, rgba(245,158,11,0.25), rgba(245,158,11,0.15))"
+                    : "rgba(255,255,255,0.03)",
+                  color: active ? "#f59e0b" : "#8a94b3",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                {n}
+              </button>
+            );
+          })}
         </div>
       </div>
 
+      {/* Player list */}
       {loading ? (
-        <div style={{ textAlign: "center", padding: 20, color: "#6c757d", fontSize: 13 }}>
-          Loading players…
-        </div>
+        <div style={loadingStyle}>Loading players…</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {players
             .sort((a, b) => b.selBy - a.selBy)
             .map((p) => {
               const isCap = captainIds.includes(p.id);
+              const teamBg = p.team === "left" ? "#06b6d4" : "#f43f5e";
               return (
                 <button
                   key={p.id}
                   onClick={() => toggleCaptain(p)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "10px 12px",
-                    background: isCap ? "#fff3cd" : "#fff",
-                    border: isCap ? "1px solid #ffc107" : "1px solid #eee",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                    textAlign: "left",
-                  }}
+                  style={playerRow(isCap, "#f59e0b")}
                 >
-                  <div
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: "50%",
-                      background: isCap ? "#ffc107" : p.team === "left" ? "#0066ff" : "#dc3545",
-                      color: "#fff",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {isCap ? "C" : p.name.charAt(0)}
+                  <div style={avatar(isCap ? "#f59e0b" : teamBg)}>
+                    {isCap ? "👑" : p.name.charAt(0)}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#212529" }}>
-                      {p.name}
-                    </div>
-                    <div style={{ fontSize: 10, color: "#6c757d" }}>
+                    <div style={playerName}>{p.name}</div>
+                    <div style={playerSub}>
                       {ROLE_LABELS[p.role]} · Sel {p.selBy}%
                     </div>
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#0066ff" }}>
-                    {p.credits} cr
+                  <div style={{ textAlign: "right" }}>
+                    <div style={creditsVal}>{p.credits}</div>
+                    <div style={creditsLabel}>cr</div>
                   </div>
                 </button>
               );
@@ -151,52 +135,14 @@ export default function CaptainPage({ params }: { params: Promise<{ id: string }
         </div>
       )}
 
-      <div
-        style={{
-          position: "sticky",
-          bottom: 60,
-          background: "#fff",
-          padding: 10,
-          borderTop: "1px solid #eee",
-          display: "flex",
-          gap: 8,
-          zIndex: 20,
-        }}
-      >
-        <button
-          onClick={() => setCaptainIds([])}
-          style={{
-            flex: 1,
-            padding: "10px",
-            border: "1px solid #ddd",
-            background: "#fff",
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
-            color: "#6c757d",
-            cursor: "pointer",
-          }}
-        >
+      {/* Action bar */}
+      <div style={actionBar}>
+        <button onClick={() => setCaptainIds([])} style={resetBtn}>
           Reset
         </button>
         <button
           onClick={() => router.push(`/match/${matchId}/vicecaptain`)}
-          className="btn-tg-primary"
-          style={{
-            flex: 2,
-            padding: "10px",
-            border: "none",
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 700,
-            color: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 4,
-            cursor: "pointer",
-            opacity: captainIds.length < 1 ? 0.5 : 1,
-          }}
+          style={primaryBtn(captainIds.length < 1)}
           disabled={captainIds.length < 1}
         >
           Continue <ChevronRight size={16} />

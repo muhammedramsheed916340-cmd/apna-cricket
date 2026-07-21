@@ -1,5 +1,10 @@
 export const BANNERS = [
   {
+    alt: "Apna Cricket — Premium AI Fantasy Cricket",
+    src: "/premium-cricket-banner.png",
+    href: "/premium",
+  },
+  {
     alt: "Apna Cricket - Fantasy Team Generator",
     src: "/apna_cricket_logo.png",
     href: "#",
@@ -12,16 +17,6 @@ export const BANNERS = [
   {
     alt: "Cricket Stadium",
     src: "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=800&h=400&fit=crop",
-    href: "#",
-  },
-  {
-    alt: "Cricket Action",
-    src: "https://images.unsplash.com/photo-1593796145377-30e2b1d9c4d1?w=800&h=400&fit=crop",
-    href: "#",
-  },
-  {
-    alt: "Cricket Bat and Ball",
-    src: "https://images.unsplash.com/photo-1593241331797-1eaa8e2d4c1f?w=800&h=400&fit=crop",
     href: "#",
   },
 ];

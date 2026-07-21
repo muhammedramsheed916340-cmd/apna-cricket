@@ -3,12 +3,22 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/components/tg/auth-provider";
 import { LicenseProvider } from "@/lib/license-context";
+import { SubscriptionProvider } from "@/lib/subscription-context";
 
 export const metadata: Metadata = {
-  title: "Apna Cricket",
+  title: "Apna Cricket — Fantasy Team Generator",
   description:
-    "Dream11 Team Generator software also known as Team generation software is the india's best software to create Grand League winning teams in Dream11,This TG software is developed by Apna Cricket youtube channel",
+    "Apna Cricket is India's best fantasy cricket team generator. Create Grand League winning teams for Dream11, My11Circle with AI-powered Rank 1 team generation.",
   manifest: "/manifest.json",
+  applicationName: "Apna Cricket",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Apna Cricket",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
@@ -20,7 +30,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#0066ff",
+  viewportFit: "cover",
+  themeColor: "#050816",
 };
 
 export default function RootLayout({
@@ -32,7 +43,9 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased">
         <AuthProvider>
-          <LicenseProvider>{children}</LicenseProvider>
+          <LicenseProvider>
+            <SubscriptionProvider>{children}</SubscriptionProvider>
+          </LicenseProvider>
         </AuthProvider>
         <Toaster />
       </body>

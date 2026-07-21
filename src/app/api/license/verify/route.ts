@@ -6,6 +6,24 @@ import { getAllLicenses } from "@/lib/license-store";
 
 export const dynamic = "force-dynamic";
 
+// ====== Rate limiting (prevent brute force) ======
+// Max 10 verification attempts per IP per 60 seconds
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW = 60 * 1000;
+const RATE_LIMIT_MAX = 10;
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return false;
+  entry.count += 1;
+  return true;
+}
+
 function persistLicenses() {
   try {
     const allKeys = getAllLicenses().map(k => ({
@@ -19,6 +37,16 @@ function persistLicenses() {
 
 export async function POST(req: Request) {
   try {
+    // Rate limit check
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+               req.headers.get("x-real-ip") || "unknown";
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json(
+        { status: "fail", message: "Too many attempts. Please wait a minute." },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     const { key, deviceFp } = body;
 
@@ -48,18 +76,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: "fail", message: "❌ License bound to another device" });
     }
 
-    if (!license.deviceFp) {
-      updateLicense(key, {
-        deviceFp, boundAt: new Date().toISOString(), status: "used",
-        usageCount: license.usageCount + 1, lastUsedAt: new Date().toISOString(),
-      });
-      persistLicenses();
-      addLog("device_bind", `Device bound to ${key}`, { deviceFp, licenseKey: key });
-    } else {
-      updateLicense(key, {
-        usageCount: license.usageCount + 1, lastUsedAt: new Date().toISOString(),
-      });
-    }
+    // NOTE: Do NOT bind device here. Device binding happens ONLY in /api/license/activate.
+    // This endpoint is for verification only (read-only check).
+    // Just update usage stats.
+    updateLicense(key, {
+      usageCount: license.usageCount + 1, lastUsedAt: new Date().toISOString(),
+    });
 
     addLog("key_verify", `✅ Verified: ${key}`, { deviceFp, licenseKey: key });
 
