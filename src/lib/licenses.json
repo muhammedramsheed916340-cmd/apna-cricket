@@ -1168,5 +1168,31 @@
     "createdAt": "2026-07-21T13:01:08.018Z",
     "createdBy": "admin",
     "updatedAt": "2026-07-21T13:01:08.018Z"
+  },
+  {
+    "key": "RMSMT-Y5AC-VMA9-TKWS",
+    "plan": "lifetime",
+    "status": "active",
+    "deviceFp": null,
+    "expiresAt": "2036-07-18T13:53:39.292Z",
+    "usageCount": 0,
+    "lastUsedAt": null,
+    "boundAt": null,
+    "createdAt": "2026-07-21T13:53:42.081Z",
+    "createdBy": "admin",
+    "updatedAt": "2026-07-21T13:53:42.081Z"
+  },
+  {
+    "key": "RMSMT-Q3KX-BC8J-YXQE",
+    "plan": "lifetime",
+    "status": "active",
+    "deviceFp": null,
+    "expiresAt": "2036-07-18T13:56:06.807Z",
+    "usageCount": 0,
+    "lastUsedAt": null,
+    "boundAt": null,
+    "createdAt": "2026-07-21T13:56:09.000Z",
+    "createdBy": "admin",
+    "updatedAt": "2026-07-21T13:56:09.000Z"
   }
 ]

@@ -94,6 +94,33 @@ export async function POST(req: Request) {
     // ====== Step 4: Return result ======
     addLog("admin_action", `Generated ${keys.length}/${count} ${plan} keys (Neon: ${keys.length}, Failed: ${failedKeys.length})`, {});
 
+    // ====== Firebase Sync: sync new keys to Firestore (backup, non-blocking) ======
+    if (keys.length > 0) {
+      try {
+        const { saveLicenseToFirestore } = await import("@/lib/firestore-collections");
+        for (const key of keys) {
+          const license = getLicense(key);
+          if (license) {
+            saveLicenseToFirestore({
+              key: license.key,
+              plan: license.plan,
+              status: license.status,
+              deviceFp: license.deviceFp || "",
+              expiresAt: new Date(license.expiresAt || "").getTime() || 0,
+              boundAt: 0,
+              activatedAt: 0,
+              appVersion: "1.0.0",
+            }).then(r => {
+              if (r.success) console.log("[License Generate] Firebase sync OK:", key);
+              else console.warn("[License Generate] Firebase sync failed:", key, r.error);
+            }).catch(() => {});
+          }
+        }
+      } catch (e) {
+        console.warn("[License Generate] Firebase sync skipped:", e instanceof Error ? e.message : String(e));
+      }
+    }
+
     if (keys.length === 0 && count > 0) {
       return NextResponse.json({
         status: "fail",

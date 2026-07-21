@@ -100,27 +100,26 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const verify = async (key: string): Promise<boolean> => {
     const deviceId = getDeviceId();
     try {
-      // Step 1: Call activate API (saves to Firestore server-side)
-      const activateRes = await fetch("/api/license/activate", {
+      // Call subscription verify API (checks Neon + local store)
+      const res = await fetch("/api/subscription/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key, deviceFp: deviceId, appVersion: "1.0.0" }),
+        body: JSON.stringify({ key, deviceFp: deviceId }),
       });
-      const activateData = await activateRes.json();
+      const data = await res.json();
 
-      if (!activateData.valid || !activateData.firestoreSaved) {
-        // Activation failed (Firestore write failed or license invalid)
-        console.error("[Subscription] Activation failed:", activateData.message);
-        return false;
+      if (data.valid) {
+        // Verification succeeded — update client state
+        setVerified(true);
+        setPlan(data.plan);
+        setFeatures(data.features || []);
+        localStorage.setItem("subscriptionVerified", "true");
+        localStorage.setItem("licenseKey", key.toUpperCase().trim());
+        return true;
       }
 
-      // Step 2: Firestore save succeeded → update client state
-      setVerified(true);
-      setPlan(activateData.plan);
-      setFeatures(activateData.features || []);
-      localStorage.setItem("subscriptionVerified", "true");
-      localStorage.setItem("licenseKey", key.toUpperCase().trim());
-      return true;
+      console.error("[Subscription] Verification failed:", data.message);
+      return false;
     } catch {
       console.error("[Subscription] verify error");
       return false;
