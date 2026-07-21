@@ -1,0 +1,3 @@
+#!/bin/bash
+export DATABASE_URL="postgresql://neondb_owner:npg_mrf5YU9VgBbe@ep-wandering-sound-auc3pst8-pooler.c-10.us-east-1.aws.neon.tech/neondb?sslmode=require"
+npx prisma generate "$@"

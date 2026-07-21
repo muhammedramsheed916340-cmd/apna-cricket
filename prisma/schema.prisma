@@ -7,15 +7,15 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = "postgresql://neondb_owner:npg_mrf5YU9VgBbe@ep-wandering-sound-auc3pst8-pooler.c-10.us-east-1.aws.neon.tech/neondb?sslmode=require"
 }
 
 model LicenseKey {
   id            String    @id @default(cuid())
   key           String    @unique
   label         String?
-  status        String    @default("active") // active, suspended, expired, used
-  plan          String    @default("monthly") // trial, weekly, monthly, lifetime, daily
+  status        String    @default("active")
+  plan          String    @default("monthly")
   maxDevices    Int       @default(1)
   deviceFp      String?
   boundAt       DateTime?
@@ -59,8 +59,8 @@ model Subscription {
   id            String    @id @default(cuid())
   licenseKey    String    @unique
   plan          String    @default("free")
-  status        String    @default("active") // active, expired, cancelled
-  features      String    // JSON array of features
+  status        String    @default("active")
+  features      String
   deviceId      String?
   expiresAt     DateTime?
   activatedAt   DateTime?
@@ -80,7 +80,7 @@ model Setting {
 
 model JwtToken {
   id        String   @id @default(cuid())
-  key       String   @unique // "jwt_token" or "user_token"
+  key       String   @unique
   value     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -88,7 +88,7 @@ model JwtToken {
 
 model AdminLog {
   id         String   @id @default(cuid())
-  type       String   // key_verify, login, team_gen, device_bind, admin_action, error, transfer
+  type       String
   message    String
   licenseKey String?
   deviceFp   String?
@@ -103,7 +103,7 @@ model Announcement {
   id        String   @id @default(cuid())
   title     String
   message   String
-  target    String   @default("all") // all, premium, selected
+  target    String   @default("all")
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
 }

@@ -1077,5 +1077,18 @@
     "createdAt": "2026-07-21T11:18:54.856Z",
     "createdBy": "admin",
     "updatedAt": "2026-07-21T11:19:18.220Z"
+  },
+  {
+    "key": "RMSMT-7UAV-D7B7-JRRW",
+    "plan": "monthly",
+    "status": "suspended",
+    "deviceFp": null,
+    "expiresAt": "2026-08-20T11:58:56.178Z",
+    "usageCount": 1,
+    "lastUsedAt": "2026-07-21T11:59:34.936Z",
+    "boundAt": null,
+    "createdAt": "2026-07-21T11:58:58.477Z",
+    "createdBy": "admin",
+    "updatedAt": "2026-07-21T11:59:35.056Z"
   }
 ]
