@@ -54,7 +54,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: "fail", message: "Key and device ID required" });
     }
 
-    const license = getLicense(key);
+    // Step 1: Check local store first
+    let license = getLicense(key);
+
+    // Step 2: If not in local store, check Firestore
+    if (!license) {
+      console.log("[License Verify] Key not in local store, checking Firestore:", key);
+      try {
+        const { getLicenseFromFirestore } = await import("@/lib/firestore-collections");
+        const fsLicense = await getLicenseFromFirestore(key);
+        if (fsLicense) {
+          console.log("[License Verify] Found in Firestore:", key);
+          // Add to local store so future lookups are fast
+          const { createLicense } = await import("@/lib/license-store");
+          createLicense(
+            fsLicense.key,
+            fsLicense.plan || "monthly",
+            fsLicense.expiresAt ? new Date(fsLicense.expiresAt).toISOString() : new Date(Date.now() + 30 * 86400000).toISOString()
+          );
+          // Update with Firestore data
+          const { updateLicense } = await import("@/lib/license-store");
+          updateLicense(key, {
+            status: fsLicense.status || "active",
+            deviceFp: fsLicense.deviceFp || null,
+            boundAt: fsLicense.boundAt ? new Date(fsLicense.boundAt).toISOString() : null,
+            usageCount: fsLicense.usageCount || 0,
+          });
+          license = getLicense(key);
+        }
+      } catch (e) {
+        console.error("[License Verify] Firestore lookup error:", e instanceof Error ? e.message : String(e));
+      }
+    }
 
     if (!license) {
       addLog("key_verify", `Invalid key: ${key}`, { deviceFp });

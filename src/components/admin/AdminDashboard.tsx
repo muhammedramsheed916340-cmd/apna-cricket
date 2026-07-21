@@ -25,6 +25,8 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
   const [jwtSaved, setJwtSaved] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+  const [saveResult, setSaveResult] = useState<string>("");
 
   const fetchStats = async () => {
     const res = await fetch("/api/admin/stats", {
@@ -157,13 +159,62 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
     try {
       navigator.clipboard.writeText(key);
     } catch {
-      // Fallback for older browsers
       const textarea = document.createElement("textarea");
       textarea.value = key;
       document.body.appendChild(textarea);
       textarea.select();
       document.execCommand("copy");
       document.body.removeChild(textarea);
+    }
+  };
+
+  // ====== Save unsaved keys to Firestore ======
+  const handleSaveToFirebase = async () => {
+    setSaving(true);
+    setSaveResult("");
+    try {
+      const res = await fetch("/api/admin/firebase-sync", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${ADMIN_PASS}` },
+      });
+      const d = await res.json();
+      if (d.status === "success") {
+        setSaveResult(`✅ Saved: ${d.synced}/${d.total}${d.failed > 0 ? ` · Failed: ${d.failed}` : ""}`);
+      } else {
+        setSaveResult(`❌ Save failed: ${d.error || "unknown"}`);
+      }
+    } catch (e) {
+      setSaveResult(`❌ Error: ${(e as Error).message}`);
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveResult(""), 5000);
+    }
+  };
+
+  // ====== Format date for display ======
+  const formatDate = (dateStr: string | null): string => {
+    if (!dateStr) return "—";
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString("en-GB") + " " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return "—";
+    }
+  };
+
+  // ====== Calculate remaining time ======
+  const getRemaining = (expiresAt: string | null): string => {
+    if (!expiresAt) return "—";
+    try {
+      const exp = new Date(expiresAt).getTime();
+      const now = Date.now();
+      if (exp <= now) return "Expired";
+      const days = Math.floor((exp - now) / 86400000);
+      const hours = Math.floor(((exp - now) % 86400000) / 3600000);
+      if (days > 3650) return "Never";
+      return `${days}d ${hours}h`;
+    } catch {
+      return "—";
     }
   };
 
@@ -326,6 +377,11 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
               <button onClick={generateKeys} disabled={loading} style={{ width: "100%", padding: "8px", background: "#00b050", border: "none", borderRadius: 4, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: loading ? 0.6 : 1 }}>
                 {loading ? "Generating..." : "Generate"}
               </button>
+              {/* Save button */}
+              <button onClick={handleSaveToFirebase} disabled={saving} style={{ width: "100%", padding: "6px", marginTop: 4, background: "#0066ff", border: "none", borderRadius: 4, color: "#fff", fontSize: 11, fontWeight: 700, cursor: saving ? "wait" : "pointer", opacity: saving ? 0.6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                {saving ? <><RefreshCw size={11} className="animate-spin" /> Saving…</> : <><Save size={11} /> 💾 Save to Firebase</>}
+              </button>
+              {saveResult && <div style={{ marginTop: 4, padding: 4, background: "#111", borderRadius: 3, fontSize: 9, color: saveResult.startsWith("✅") ? "#00b050" : "#dc3545", textAlign: "center" }}>{saveResult}</div>}
               {genResult.length > 0 && (
                 <div style={{ marginTop: 8, background: "#111", borderRadius: 4, padding: 8, maxHeight: 150, overflowY: "auto" }}>
                   {genResult.map((k, i) => (
@@ -348,27 +404,34 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
             </div>
             {syncResult && <div style={{ marginBottom: 8, padding: 6, background: "#111", borderRadius: 4, fontSize: 10, color: syncResult.startsWith("✅") ? "#00b050" : "#dc3545", textAlign: "center" }}>{syncResult}</div>}
             {/* Key list */}
-            <div style={{ background: "#0a0a0a", border: "1px solid #222", borderRadius: 8, padding: 10, maxHeight: 400, overflowY: "auto" }}>
+            <div style={{ background: "#0a0a0a", border: "1px solid #222", borderRadius: 8, padding: 10, maxHeight: 500, overflowY: "auto" }}>
               {keys.map((k, idx) => {
                 const itemKey = k.id || k.key || `key-${idx}`;
                 return (
-                <div key={itemKey} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #1a1a1a" }}>
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ fontSize: 11, fontFamily: "monospace", color: "#0066ff" }}>{k.key}</span>
-                      <button onClick={() => copyKey(k.key)} style={{ padding: "1px 4px", background: "#333", border: "none", borderRadius: 2, fontSize: 8, color: "#fff", cursor: "pointer" }}>📋</button>
+                <div key={itemKey} style={{ padding: "8px 0", borderBottom: "1px solid #1a1a1a" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <span style={{ fontSize: 11, fontFamily: "monospace", color: "#0066ff" }}>{k.key}</span>
+                        <button onClick={() => copyKey(k.key)} style={{ padding: "1px 4px", background: "#333", border: "none", borderRadius: 2, fontSize: 8, color: "#fff", cursor: "pointer" }}>📋</button>
+                      </div>
+                      <div style={{ fontSize: 9, color: "#666", marginTop: 2 }}>
+                        {k.plan} · {k.status} · {k.deviceFp ? "bound" : "free"} · Rem: {getRemaining(k.expiresAt)}
+                      </div>
+                      <div style={{ fontSize: 8, color: "#555", marginTop: 2 }}>
+                        Created: {formatDate(k.boundAt || null)} · Expires: {formatDate(k.expiresAt)}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 9, color: "#666" }}>{k.plan} · {k.status} · {k.deviceFp ? "bound" : "free"}</div>
-                  </div>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    {k.status === "active" || k.status === "used" ? (
-                      <button onClick={() => keyAction("suspend", k.key)} style={{ padding: "3px 6px", background: "#ffc107", border: "none", borderRadius: 3, fontSize: 9, cursor: "pointer" }}>Suspend</button>
-                    ) : (
-                      <button onClick={() => keyAction("activate", k.key)} style={{ padding: "3px 6px", background: "#00b050", border: "none", borderRadius: 3, fontSize: 9, color: "#fff", cursor: "pointer" }}>Activate</button>
-                    )}
-                    <button onClick={() => keyAction("extend", k.key, 30)} style={{ padding: "3px 6px", background: "#0066ff", border: "none", borderRadius: 3, fontSize: 9, color: "#fff", cursor: "pointer" }}>+30d</button>
-                    {k.deviceFp && <button onClick={() => keyAction("reset_device", k.key)} style={{ padding: "3px 6px", background: "#17a2b8", border: "none", borderRadius: 3, fontSize: 9, color: "#fff", cursor: "pointer" }}>Reset</button>}
-                    <button onClick={() => keyAction("delete", k.key)} style={{ padding: "3px 6px", background: "#dc3545", border: "none", borderRadius: 3, fontSize: 9, color: "#fff", cursor: "pointer" }}>Del</button>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {k.status === "active" || k.status === "used" ? (
+                        <button onClick={() => keyAction("suspend", k.key)} style={{ padding: "3px 6px", background: "#ffc107", border: "none", borderRadius: 3, fontSize: 9, cursor: "pointer" }}>Suspend</button>
+                      ) : (
+                        <button onClick={() => keyAction("activate", k.key)} style={{ padding: "3px 6px", background: "#00b050", border: "none", borderRadius: 3, fontSize: 9, color: "#fff", cursor: "pointer" }}>Activate</button>
+                      )}
+                      <button onClick={() => keyAction("extend", k.key, 30)} style={{ padding: "3px 6px", background: "#0066ff", border: "none", borderRadius: 3, fontSize: 9, color: "#fff", cursor: "pointer" }}>+30d</button>
+                      {k.deviceFp && <button onClick={() => keyAction("reset_device", k.key)} style={{ padding: "3px 6px", background: "#17a2b8", border: "none", borderRadius: 3, fontSize: 9, color: "#fff", cursor: "pointer" }}>Reset</button>}
+                      <button onClick={() => keyAction("delete", k.key)} style={{ padding: "3px 6px", background: "#dc3545", border: "none", borderRadius: 3, fontSize: 9, color: "#fff", cursor: "pointer" }}>Del</button>
+                    </div>
                   </div>
                 </div>
                 );
