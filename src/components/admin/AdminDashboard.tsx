@@ -21,6 +21,8 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
   const [genResult, setGenResult] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [licenseFilter, setLicenseFilter] = useState("all");
+  const [licensePage, setLicensePage] = useState(0);
   const [jwtToken, setJwtToken] = useState("");
   const [jwtSaved, setJwtSaved] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -286,6 +288,28 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
     } catch {}
   };
 
+  // ====== Filtered + searched + paginated keys ======
+  const PAGE_SIZE = 50;
+  const filteredKeys = keys.filter(k => {
+    // Search filter
+    if (search) {
+      const s = search.toLowerCase();
+      const matchKey = k.key?.toLowerCase().includes(s);
+      const matchPlan = k.plan?.toLowerCase().includes(s);
+      const matchStatus = k.status?.toLowerCase().includes(s);
+      const matchDevice = k.deviceFp?.toLowerCase().includes(s);
+      if (!matchKey && !matchPlan && !matchStatus && !matchDevice) return false;
+    }
+    // Advanced filter
+    if (licenseFilter === "all") return true;
+    if (licenseFilter === "free") return !k.deviceFp;
+    if (licenseFilter === "active" || licenseFilter === "used" || licenseFilter === "suspended" || licenseFilter === "expired") return k.status === licenseFilter;
+    if (licenseFilter === "monthly" || licenseFilter === "weekly" || licenseFilter === "lifetime" || licenseFilter === "daily" || licenseFilter === "trial") return k.plan === licenseFilter;
+    return true;
+  });
+  const totalPages = Math.ceil(filteredKeys.length / PAGE_SIZE);
+  const paginatedKeys = filteredKeys.slice(licensePage * PAGE_SIZE, (licensePage + 1) * PAGE_SIZE);
+
   const filteredDevices = devices.filter(d => {
     if (!search) return true;
     const s = search.toLowerCase();
@@ -403,14 +427,32 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
               </button>
             </div>
             {syncResult && <div style={{ marginBottom: 8, padding: 6, background: "#111", borderRadius: 4, fontSize: 10, color: syncResult.startsWith("✅") ? "#00b050" : "#dc3545", textAlign: "center" }}>{syncResult}</div>}
-            {/* Key list */}
+            {/* Search + Filter */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+              <input type="text" placeholder="Search key, plan, status, device..." value={search} onChange={e => { setSearch(e.target.value); setLicensePage(0); }} style={{ flex: 1, padding: "6px", background: "#111", border: "1px solid #333", borderRadius: 4, color: "#fff", fontSize: 11 }} />
+              <select value={licenseFilter} onChange={e => { setLicenseFilter(e.target.value); setLicensePage(0); }} style={{ padding: "6px", background: "#111", border: "1px solid #333", borderRadius: 4, color: "#fff", fontSize: 11 }}>
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="used">Used</option>
+                <option value="free">Free</option>
+                <option value="suspended">Suspended</option>
+                <option value="expired">Expired</option>
+                <option value="monthly">Monthly</option>
+                <option value="weekly">Weekly</option>
+                <option value="lifetime">Lifetime</option>
+                <option value="daily">Daily</option>
+                <option value="trial">Trial</option>
+              </select>
+            </div>
+            <div style={{ fontSize: 10, color: "#666", marginBottom: 6 }}>{filteredKeys.length} keys {search && `(filtered from ${keys.length})`}</div>
+            {/* Key list (paginated) */}
             <div style={{ background: "#0a0a0a", border: "1px solid #222", borderRadius: 8, padding: 10, maxHeight: 500, overflowY: "auto" }}>
-              {keys.map((k, idx) => {
+              {paginatedKeys.map((k, idx) => {
                 const itemKey = k.id || k.key || `key-${idx}`;
                 return (
                 <div key={itemKey} style={{ padding: "8px 0", borderBottom: "1px solid #1a1a1a" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                         <span style={{ fontSize: 11, fontFamily: "monospace", color: "#0066ff" }}>{k.key}</span>
                         <button onClick={() => copyKey(k.key)} style={{ padding: "1px 4px", background: "#333", border: "none", borderRadius: 2, fontSize: 8, color: "#fff", cursor: "pointer" }}>📋</button>
@@ -419,25 +461,39 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
                         {k.plan} · {k.status} · {k.deviceFp ? "bound" : "free"} · Rem: {getRemaining(k.expiresAt)}
                       </div>
                       <div style={{ fontSize: 8, color: "#555", marginTop: 2 }}>
-                        Created: {formatDate(k.boundAt || null)} · Expires: {formatDate(k.expiresAt)}
+                        Created: {formatDate(k.createdAt || k.boundAt || null)}
                       </div>
+                      <div style={{ fontSize: 8, color: "#555" }}>
+                        Activated: {formatDate(k.boundAt || null)} · Expires: {formatDate(k.expiresAt)}
+                      </div>
+                      {k.updatedAt && <div style={{ fontSize: 8, color: "#444" }}>Updated: {formatDate(k.updatedAt)}</div>}
                     </div>
-                    <div style={{ display: "flex", gap: 4 }}>
+                    <div style={{ display: "flex", gap: 3, flexShrink: 0, flexWrap: "wrap", maxWidth: 120 }}>
                       {k.status === "active" || k.status === "used" ? (
-                        <button onClick={() => keyAction("suspend", k.key)} style={{ padding: "3px 6px", background: "#ffc107", border: "none", borderRadius: 3, fontSize: 9, cursor: "pointer" }}>Suspend</button>
+                        <button onClick={() => keyAction("suspend", k.key)} style={{ padding: "3px 5px", background: "#ffc107", border: "none", borderRadius: 3, fontSize: 8, cursor: "pointer" }}>Suspend</button>
                       ) : (
-                        <button onClick={() => keyAction("activate", k.key)} style={{ padding: "3px 6px", background: "#00b050", border: "none", borderRadius: 3, fontSize: 9, color: "#fff", cursor: "pointer" }}>Activate</button>
+                        <button onClick={() => keyAction("activate", k.key)} style={{ padding: "3px 5px", background: "#00b050", border: "none", borderRadius: 3, fontSize: 8, color: "#fff", cursor: "pointer" }}>Activate</button>
                       )}
-                      <button onClick={() => keyAction("extend", k.key, 30)} style={{ padding: "3px 6px", background: "#0066ff", border: "none", borderRadius: 3, fontSize: 9, color: "#fff", cursor: "pointer" }}>+30d</button>
-                      {k.deviceFp && <button onClick={() => keyAction("reset_device", k.key)} style={{ padding: "3px 6px", background: "#17a2b8", border: "none", borderRadius: 3, fontSize: 9, color: "#fff", cursor: "pointer" }}>Reset</button>}
-                      <button onClick={() => keyAction("delete", k.key)} style={{ padding: "3px 6px", background: "#dc3545", border: "none", borderRadius: 3, fontSize: 9, color: "#fff", cursor: "pointer" }}>Del</button>
+                      <button onClick={() => keyAction("extend", k.key, 30)} style={{ padding: "3px 5px", background: "#0066ff", border: "none", borderRadius: 3, fontSize: 8, color: "#fff", cursor: "pointer" }}>+30d</button>
+                      {k.deviceFp && <button onClick={() => keyAction("reset_device", k.key)} style={{ padding: "3px 5px", background: "#17a2b8", border: "none", borderRadius: 3, fontSize: 8, color: "#fff", cursor: "pointer" }}>Reset</button>}
+                      <button onClick={() => keyAction("delete", k.key)} style={{ padding: "3px 5px", background: "#dc3545", border: "none", borderRadius: 3, fontSize: 8, color: "#fff", cursor: "pointer" }}>Del</button>
                     </div>
                   </div>
                 </div>
                 );
               })}
-              {keys.length === 0 && <div style={{ textAlign: "center", color: "#666", fontSize: 12, padding: 20 }}>No keys yet</div>}
+              {paginatedKeys.length === 0 && <div style={{ textAlign: "center", color: "#666", fontSize: 12, padding: 20 }}>No keys found</div>}
             </div>
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div style={{ display: "flex", justifyContent: "center", gap: 4, marginTop: 8 }}>
+                <button onClick={() => setLicensePage(0)} disabled={licensePage === 0} style={{ padding: "4px 8px", background: "#111", border: "1px solid #333", borderRadius: 3, color: licensePage === 0 ? "#444" : "#fff", fontSize: 10, cursor: licensePage === 0 ? "default" : "pointer" }}>⟪ First</button>
+                <button onClick={() => setLicensePage(p => Math.max(0, p - 1))} disabled={licensePage === 0} style={{ padding: "4px 8px", background: "#111", border: "1px solid #333", borderRadius: 3, color: licensePage === 0 ? "#444" : "#fff", fontSize: 10, cursor: licensePage === 0 ? "default" : "pointer" }}>◀ Prev</button>
+                <span style={{ padding: "4px 8px", color: "#888", fontSize: 10 }}>Page {licensePage + 1} / {totalPages}</span>
+                <button onClick={() => setLicensePage(p => Math.min(totalPages - 1, p + 1))} disabled={licensePage >= totalPages - 1} style={{ padding: "4px 8px", background: "#111", border: "1px solid #333", borderRadius: 3, color: licensePage >= totalPages - 1 ? "#444" : "#fff", fontSize: 10, cursor: licensePage >= totalPages - 1 ? "default" : "pointer" }}>Next ▶</button>
+                <button onClick={() => setLicensePage(totalPages - 1)} disabled={licensePage >= totalPages - 1} style={{ padding: "4px 8px", background: "#111", border: "1px solid #333", borderRadius: 3, color: licensePage >= totalPages - 1 ? "#444" : "#fff", fontSize: 10, cursor: licensePage >= totalPages - 1 ? "default" : "pointer" }}>Last ⟫</button>
+              </div>
+            )}
           </div>
         )}
 

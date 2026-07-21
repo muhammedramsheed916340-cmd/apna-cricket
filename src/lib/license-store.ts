@@ -13,6 +13,9 @@ export interface LicenseKey {
   usageCount: number;
   lastUsedAt: string | null;
   boundAt: string | null;
+  createdAt: string | null;
+  createdBy: string | null;
+  updatedAt: string | null;
 }
 
 // In-memory store initialized from JSON file (baked into the build)
@@ -29,6 +32,9 @@ for (const k of licenseData as any[]) {
     usageCount: k.usageCount || 0,
     lastUsedAt: k.lastUsedAt || null,
     boundAt: k.boundAt || null,
+    createdAt: k.createdAt || null,
+    createdBy: k.createdBy || null,
+    updatedAt: k.updatedAt || null,
   });
 }
 
@@ -47,6 +53,7 @@ export function getLicense(key: string): LicenseKey | null {
 }
 
 export function createLicense(key: string, plan: string, expiresAt: string): LicenseKey {
+  const now = new Date().toISOString();
   const license: LicenseKey = {
     key,
     plan,
@@ -56,6 +63,9 @@ export function createLicense(key: string, plan: string, expiresAt: string): Lic
     usageCount: 0,
     lastUsedAt: null,
     boundAt: null,
+    createdAt: now,
+    createdBy: "admin",
+    updatedAt: now,
   };
   store.set(key, license);
   return license;
@@ -64,7 +74,7 @@ export function createLicense(key: string, plan: string, expiresAt: string): Lic
 export function updateLicense(key: string, updates: Partial<LicenseKey>): LicenseKey | null {
   const existing = store.get(key);
   if (!existing) return null;
-  const updated = { ...existing, ...updates };
+  const updated = { ...existing, ...updates, updatedAt: new Date().toISOString() };
   store.set(key, updated);
   return updated;
 }
