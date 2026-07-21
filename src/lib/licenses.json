@@ -1090,5 +1090,31 @@
     "createdAt": "2026-07-21T11:58:58.477Z",
     "createdBy": "admin",
     "updatedAt": "2026-07-21T11:59:35.056Z"
+  },
+  {
+    "key": "RMSMT-LAJ8-7EPM-HZA5",
+    "plan": "monthly",
+    "status": "active",
+    "deviceFp": null,
+    "expiresAt": "2026-08-20T12:12:56.610Z",
+    "usageCount": 0,
+    "lastUsedAt": null,
+    "boundAt": null,
+    "createdAt": "2026-07-21T12:12:59.422Z",
+    "createdBy": "admin",
+    "updatedAt": "2026-07-21T12:12:59.422Z"
+  },
+  {
+    "key": "RMSMT-ZKTK-7YLY-LAJJ",
+    "plan": "weekly",
+    "status": "active",
+    "deviceFp": null,
+    "expiresAt": "2026-07-28T12:13:54.192Z",
+    "usageCount": 0,
+    "lastUsedAt": null,
+    "boundAt": null,
+    "createdAt": "2026-07-21T12:13:56.460Z",
+    "createdBy": "admin",
+    "updatedAt": "2026-07-21T12:13:56.460Z"
   }
 ]
