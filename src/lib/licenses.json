@@ -1116,5 +1116,44 @@
     "createdAt": "2026-07-21T12:13:56.460Z",
     "createdBy": "admin",
     "updatedAt": "2026-07-21T12:13:56.460Z"
+  },
+  {
+    "key": "RMSMT-7B7U-RQCJ-VUZC",
+    "plan": "monthly",
+    "status": "active",
+    "deviceFp": null,
+    "expiresAt": "2026-08-20T12:20:14.410Z",
+    "usageCount": 0,
+    "lastUsedAt": null,
+    "boundAt": null,
+    "createdAt": "2026-07-21T12:20:15.299Z",
+    "createdBy": "admin",
+    "updatedAt": "2026-07-21T12:20:15.299Z"
+  },
+  {
+    "key": "RMSMT-DB7N-SF4Z-ETSH",
+    "plan": "monthly",
+    "status": "active",
+    "deviceFp": null,
+    "expiresAt": "2026-08-20T12:57:14.487Z",
+    "usageCount": 1,
+    "lastUsedAt": "2026-07-21T12:57:35.658Z",
+    "boundAt": null,
+    "createdAt": "2026-07-21T12:57:15.152Z",
+    "createdBy": "admin",
+    "updatedAt": "2026-07-21T12:57:35.658Z"
+  },
+  {
+    "key": "RMSMT-PDH2-SHXQ-4JUR",
+    "plan": "weekly",
+    "status": "active",
+    "deviceFp": null,
+    "expiresAt": "2026-07-28T12:57:44.337Z",
+    "usageCount": 0,
+    "lastUsedAt": null,
+    "boundAt": null,
+    "createdAt": "2026-07-21T12:57:45.206Z",
+    "createdBy": "admin",
+    "updatedAt": "2026-07-21T12:57:45.206Z"
   }
 ]

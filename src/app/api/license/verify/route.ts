@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
 import { getLicense, updateLicense, addLog } from "@/lib/license-store";
-import * as fs from "fs";
-import * as path from "path";
-import { getAllLicenses } from "@/lib/license-store";
+import { getLicenseFromNeon, updateLicenseInNeon } from "@/lib/neon-store";
 
 export const dynamic = "force-dynamic";
 
 // ====== Rate limiting (prevent brute force) ======
-// Max 10 verification attempts per IP per 60 seconds
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW = 60 * 1000;
 const RATE_LIMIT_MAX = 10;
@@ -22,17 +19,6 @@ function checkRateLimit(ip: string): boolean {
   if (entry.count >= RATE_LIMIT_MAX) return false;
   entry.count += 1;
   return true;
-}
-
-function persistLicenses() {
-  try {
-    const allKeys = getAllLicenses().map(k => ({
-      key: k.key, plan: k.plan, status: k.status, deviceFp: k.deviceFp,
-      expiresAt: k.expiresAt, usageCount: k.usageCount, lastUsedAt: k.lastUsedAt, boundAt: k.boundAt,
-    }));
-    fs.writeFileSync(path.join(process.cwd(), "src/lib/licenses.json"), JSON.stringify(allKeys, null, 2));
-    return true;
-  } catch { return false; }
 }
 
 export async function POST(req: Request) {
@@ -54,30 +40,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: "fail", message: "Key and device ID required" });
     }
 
-    // Step 1: Check local store first
+    // Step 1: Check local in-memory store first (fast path)
     let license = getLicense(key) as any;
 
     // Step 2: If not in local store, check Neon PostgreSQL
     if (!license) {
       console.log("[License Verify] Key not in local store, checking Neon:", key);
       try {
-        const { getLicenseFromNeon } = await import("@/lib/neon-store");
         const neonLicense = await getLicenseFromNeon(key);
         if (neonLicense) {
-          console.log("[License Verify] Found in Neon:", key);
-          // Add to local store for future fast lookups
-          createLicense(
-            neonLicense.key,
-            neonLicense.plan || "monthly",
-            neonLicense.expiresAt ? new Date(neonLicense.expiresAt).toISOString() : new Date(Date.now() + 30 * 86400000).toISOString()
-          );
-          updateLicense(key, {
+          console.log("[License Verify] Found in Neon:", key, "plan:", neonLicense.plan, "status:", neonLicense.status);
+          // Use Neon data directly — no need to cache in local store
+          license = {
+            key: neonLicense.key,
+            plan: neonLicense.plan || "monthly",
             status: neonLicense.status || "active",
             deviceFp: neonLicense.deviceFp || null,
-            boundAt: neonLicense.boundAt ? new Date(neonLicense.boundAt).toISOString() : null,
+            expiresAt: neonLicense.expiresAt ? new Date(neonLicense.expiresAt).toISOString() : null,
             usageCount: neonLicense.usageCount || 0,
-          });
-          license = getLicense(key) as any;
+            lastUsedAt: neonLicense.lastUsedAt ? new Date(neonLicense.lastUsedAt).toISOString() : null,
+            boundAt: neonLicense.boundAt ? new Date(neonLicense.boundAt).toISOString() : null,
+          };
         }
       } catch (e) {
         console.error("[License Verify] Neon lookup error:", e instanceof Error ? e.message : String(e));
@@ -89,27 +72,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: "fail", message: "❌ Invalid RMSMT License Key" });
     }
 
-    if (license.status === "suspended") {
-      return NextResponse.json({ status: "fail", message: "❌ License suspended. Contact admin." });
+    // Step 3: Validate status
+    if (license.status === "suspended" || license.status === "revoked") {
+      return NextResponse.json({ status: "fail", message: `❌ License ${license.status}. Contact admin.` });
     }
 
+    // Step 4: Validate expiry
     if (license.expiresAt && new Date() > new Date(license.expiresAt)) {
-      updateLicense(key, { status: "expired" });
-      persistLicenses();
+      // Update status to expired in Neon
+      await updateLicenseInNeon(key, { status: "expired" });
       return NextResponse.json({ status: "fail", message: "❌ License expired" });
     }
 
+    // Step 5: Check device binding (read-only, do NOT bind)
     if (license.deviceFp && license.deviceFp !== deviceFp) {
       addLog("key_verify", `Device mismatch for ${key}`, { deviceFp, licenseKey: key });
       return NextResponse.json({ status: "fail", message: "❌ License bound to another device" });
     }
 
-    // NOTE: Do NOT bind device here. Device binding happens ONLY in /api/license/activate.
-    // This endpoint is for verification only (read-only check).
-    // Just update usage stats.
-    updateLicense(key, {
-      usageCount: license.usageCount + 1, lastUsedAt: new Date().toISOString(),
-    });
+    // Step 6: Update usage stats in Neon (non-blocking)
+    const newUsageCount = (license.usageCount || 0) + 1;
+    updateLicenseInNeon(key, {
+      usageCount: newUsageCount,
+      lastUsedAt: new Date().toISOString(),
+    }).catch(() => {}); // non-blocking
+
+    // Also update local store if present
+    try {
+      updateLicense(key, {
+        usageCount: newUsageCount,
+        lastUsedAt: new Date().toISOString(),
+      });
+    } catch {}
 
     addLog("key_verify", `✅ Verified: ${key}`, { deviceFp, licenseKey: key });
 

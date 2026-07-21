@@ -16,6 +16,7 @@ model LicenseKey {
   label         String?
   status        String    @default("active")
   plan          String    @default("monthly")
+  keyType       String    @default("normal") // normal, free_offer
   maxDevices    Int       @default(1)
   deviceFp      String?
   boundAt       DateTime?
@@ -23,12 +24,17 @@ model LicenseKey {
   usageCount    Int       @default(0)
   lastUsedAt    DateTime?
   createdBy     String?   @default("admin")
+  // Free offer specific fields (null for normal keys)
+  validityHours Int?
+  maxUsers      Int?
+  activationCount Int     @default(0)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@index([status])
   @@index([plan])
   @@index([deviceFp])
+  @@index([keyType])
 }
 
 model Device {

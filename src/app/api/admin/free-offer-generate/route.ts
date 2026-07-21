@@ -1,42 +1,13 @@
 import { NextResponse } from "next/server";
-import { getAllSettings, setSetting } from "@/lib/license-store";
 import { addLog } from "@/lib/admin/helpers";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-// ====== Free Offer Key System ======
-// Admin generates a free offer key (e.g. FREE-24H-ABCD-XYZ1)
-// Up to 100 users can activate it for 24 hours of PRO features.
-// After 24h or 100 activations, key automatically expires.
+// ====== Free Offer Key System (Neon PostgreSQL) ======
+// Free Offer Keys are stored in the LicenseKey table with keyType = "free_offer".
+// This ensures permanent persistence in Neon PostgreSQL.
 
-interface FreeOfferKey {
-  key: string;
-  enabled: boolean;
-  validityHours: number;
-  maxUsers: number;
-  activationCount: number;
-  createdAt: number;
-  expiryDate: number;
-  activatedDevices: { deviceId: string; userId: string; activatedAt: number; expiryAt: number }[];
-}
-
-// Get all free offer keys from settings
-function getFreeOfferKeys(): FreeOfferKey[] {
-  const settings = getAllSettings();
-  try {
-    const raw = settings.free_offer_keys as string;
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-function saveFreeOfferKeys(keys: FreeOfferKey[]): void {
-  setSetting("free_offer_keys", JSON.stringify(keys));
-}
-
-// Generate a free offer key
 function generateKey(): string {
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   const segment = (len: number) => Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
@@ -47,48 +18,56 @@ function generateKey(): string {
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { adminPassword, validityHours = 24, maxUsers = 100, planFeatures } = body;
+    const { adminPassword, validityHours = 24, maxUsers = 100 } = body;
 
-    // Verify admin password
     if (adminPassword !== "8950888988") {
-      return NextResponse.json(
-        { status: "fail", error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ status: "fail", error: "Unauthorized" }, { status: 401 });
     }
 
-    const hours = Math.max(1, Math.min(validityHours, 720)); // 1h to 30d
-    const maxU = Math.max(1, Math.min(maxUsers, 1000)); // 1 to 1000
+    const hours = Math.max(1, Math.min(validityHours, 720));
+    const maxU = Math.max(1, Math.min(maxUsers, 1000));
+    const key = generateKey();
+    const expiryDate = new Date(Date.now() + hours * 60 * 60 * 1000);
 
-    const newKey: FreeOfferKey = {
-      key: generateKey(),
-      enabled: true,
-      validityHours: hours,
-      maxUsers: maxU,
-      activationCount: 0,
-      createdAt: Date.now(),
-      expiryDate: Date.now() + hours * 60 * 60 * 1000,
-      activatedDevices: [],
-    };
+    // Step 1: Insert into Neon
+    const created = await db.licenseKey.create({
+      data: {
+        key,
+        plan: "free_offer",
+        keyType: "free_offer",
+        status: "active",
+        expiresAt: expiryDate,
+        validityHours: hours,
+        maxUsers: maxU,
+        activationCount: 0,
+        createdBy: "admin",
+      },
+    });
+    console.log("[Free Offer] Created in Neon:", created.key);
 
-    const keys = getFreeOfferKeys();
-    keys.push(newKey);
-    saveFreeOfferKeys(keys);
+    // Step 2: Read-back verify
+    const verified = await db.licenseKey.findUnique({ where: { key } });
+    if (!verified) {
+      return NextResponse.json({
+        status: "fail",
+        error: "Database verification failed — key was not persisted",
+      });
+    }
+    console.log("[Free Offer] Verified in Neon:", verified.key);
 
-    addLog("free_offer", `Generated free offer key: ${newKey.key}`, { validityHours: hours, maxUsers: maxU });
+    addLog("free_offer", `Generated free offer key: ${key}`, { validityHours: hours, maxUsers: maxU });
 
     return NextResponse.json({
       status: "success",
-      key: newKey.key,
+      key: created.key,
       validityHours: hours,
       maxUsers: maxU,
-      expiryDate: newKey.expiryDate,
+      expiryDate: expiryDate.toISOString(),
     });
   } catch (e) {
-    return NextResponse.json(
-      { status: "fail", error: (e as Error).message },
-      { status: 500 }
-    );
+    const error = e instanceof Error ? e.message : String(e);
+    console.error("[Free Offer] Generate error:", error);
+    return NextResponse.json({ status: "fail", error: `Database error: ${error}` }, { status: 500 });
   }
 }
 
@@ -99,61 +78,52 @@ export async function GET(req: Request) {
     const adminPassword = url.searchParams.get("adminPassword");
 
     if (adminPassword !== "8950888988") {
-      return NextResponse.json(
-        { status: "fail", error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ status: "fail", error: "Unauthorized" }, { status: 401 });
     }
 
-    const keys = getFreeOfferKeys().map(k => ({
+    // Load from Neon
+    const dbKeys = await db.licenseKey.findMany({
+      where: { keyType: "free_offer" },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const keys = dbKeys.map(k => ({
       key: k.key,
-      enabled: k.enabled,
-      validityHours: k.validityHours,
-      maxUsers: k.maxUsers,
-      activationCount: k.activationCount,
-      createdAt: k.createdAt,
-      expiryDate: k.expiryDate,
-      isExpired: Date.now() > k.expiryDate,
-      isFull: k.activationCount >= k.maxUsers,
-      remainingSlots: Math.max(0, k.maxUsers - k.activationCount),
+      enabled: k.status === "active",
+      validityHours: k.validityHours || 24,
+      maxUsers: k.maxUsers || 100,
+      activationCount: k.activationCount || 0,
+      createdAt: k.createdAt?.getTime() || 0,
+      expiryDate: k.expiresAt?.getTime() || 0,
+      isExpired: k.expiresAt ? k.expiresAt.getTime() < Date.now() : false,
+      isFull: (k.activationCount || 0) >= (k.maxUsers || 100),
+      remainingSlots: Math.max(0, (k.maxUsers || 100) - (k.activationCount || 0)),
     }));
 
     return NextResponse.json({ status: "success", keys });
   } catch (e) {
-    return NextResponse.json(
-      { status: "fail", error: (e as Error).message },
-      { status: 500 }
-    );
+    return NextResponse.json({ status: "fail", error: (e as Error).message }, { status: 500 });
   }
 }
 
-// ====== DELETE: Disable/delete a free offer key (admin only) ======
+// ====== DELETE: Delete a free offer key (admin only) ======
 export async function DELETE(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const { adminPassword, key } = body;
 
     if (adminPassword !== "8950888988") {
-      return NextResponse.json(
-        { status: "fail", error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ status: "fail", error: "Unauthorized" }, { status: 401 });
     }
 
-    const keys = getFreeOfferKeys();
-    const filtered = keys.filter(k => k.key !== key);
-    saveFreeOfferKeys(filtered);
+    // Delete from Neon
+    await db.licenseKey.delete({ where: { key } });
+    console.log("[Free Offer] Deleted from Neon:", key);
 
     addLog("free_offer", `Deleted free offer key: ${key}`, {});
 
     return NextResponse.json({ status: "success", message: "Key deleted" });
   } catch (e) {
-    return NextResponse.json(
-      { status: "fail", error: (e as Error).message },
-      { status: 500 }
-    );
+    return NextResponse.json({ status: "fail", error: (e as Error).message }, { status: 500 });
   }
 }
-
-// Export helper for activation route
-export { getFreeOfferKeys, saveFreeOfferKeys, type FreeOfferKey };
