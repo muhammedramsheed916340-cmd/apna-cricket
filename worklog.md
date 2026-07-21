@@ -3824,3 +3824,157 @@ Stage Summary:
 - Feature lock system (premium lock screen)
 - Premium cricket banner generated + added to home carousel
 - All existing features unchanged
+
+---
+Task ID: 60
+Agent: main
+Task: Production-quality Team Generation Engine rewrite (mode-isolated, real analysis, no fake success)
+
+Work Log:
+
+PROBLEM: The old /api/generate-teams route had critical quality issues:
+- Used Math.random() heavily (random teams, not analysis-driven)
+- All 7 modes (section/smart/grand/advanced/captain/vicecaptain/combination) hit
+  the SAME code path — `type` field was ignored. No mode isolation.
+- Hardcoded pitch→combination weight tables (not derived from real pool)
+- C/VC selection was pure random shuffle
+- Validation was shallow (only credit cap + dedup) — no real team-cap, role-count,
+  or C≠VC enforcement on every team
+- "Final AI Validation" checkmarks in UI were static text, not actual validation
+- No structured logging
+- No pre-lineup vs final-lineup distinction
+
+SOLUTION: Built a brand-new `src/lib/team-engine/` library and rewrote the route.
+
+FILES CREATED (12 new files):
+1. src/lib/team-engine/types.ts — shared types (PlayerAnalysis, GeneratedTeam,
+   AnalyzerReport, ValidationReport, EngineLogEntry, GenerationResult, ALL_COMBINATIONS)
+2. src/lib/team-engine/logger.ts — EngineLogger with info/warn/error + console mirror
+3. src/lib/team-engine/analyzer.ts — REAL player scoring from API fields only:
+   - safeScore (40% selBy + 25% captainPct + 15% vcPct + 20% points)
+   - differentialScore (low ownership + value backing)
+   - ceilingScore (role-based + captain backing + credits)
+   - formScore (normalized points)
+   - ownershipTier (high/mid/low/fringe from selBy)
+   - baseRank (composite sort)
+   - NEVER guesses venue/weather/head-to-head/batting-order/bowling-type
+4. src/lib/team-engine/validator.ts — REAL validators (11 checks):
+   - PLAYER_COUNT_NOT_11, CREDITS_EXCEED_100, CREDITS_TOO_LOW
+   - ROLE_COUNT_MISMATCH, TEAM_CAP_EXCEEDED_7
+   - CAPTAIN_NOT_IN_SQUAD, VC_NOT_IN_SQUAD, CAP_AND_VC_SAME
+   - INVALID_COMBINATION, DUPLICATE_TEAM (squad+C+VC key)
+   - DUPLICATE_C_VC_PAIR (opt-in via enforceUniquePairs)
+   - Validates every team; drops invalid; returns structured drop report
+5. src/lib/team-engine/scoring.ts — combination weights derived from REAL pool
+   composition (feasibility per role + pitch bias), NOT hardcoded tables
+6. src/lib/team-engine/selection.ts — deterministic rank-based selection:
+   - pickBalancedRole (top-N per role with team-cap enforcement)
+   - pickWithDifferentials (rotates differentials per team for squad diversity)
+   - selectCaptainAndVC (deterministic rotation, unique pairs per team)
+   - teamAnalysis (aggregate safe/ceiling/differential/ownership/risk)
+7. src/lib/team-engine/generators/smart.ts — Smart-only algorithm
+8. src/lib/team-engine/generators/grand.ts — Grand-League-only (forced differentials,
+   aggressive C/VC rotation, ceiling-based captaincy)
+9. src/lib/team-engine/generators/advanced.ts — Advanced-only (applies client filters;
+   skips filters requiring unavailable data with WARN log — never guesses)
+10. src/lib/team-engine/generators/section.ts — Section-only (uses client's exact 11)
+11. src/lib/team-engine/generators/captain.ts — Captain Optimizer (rotates C across
+    provided captainIds, unique C per team)
+12. src/lib/team-engine/generators/vicecaptain.ts — VC Optimizer (rotates VC across
+    provided viceCaptainIds, unique VC per team)
+13. src/lib/team-engine/generators/combination.ts — Combination-only (uses ONLY client
+    combos, no auto-distribution to other combos)
+14. src/lib/team-engine/index.ts — dispatcher: load real players → detect lineup →
+    analyze → dispatch to mode-isolated generator → validate → return real error if 0
+
+ROUTE REWRITTEN:
+- src/app/api/generate-teams/route.ts — now uses runGeneration() from the engine
+- Validates mode against VALID_MODES whitelist (mode isolation enforced at API boundary)
+- Mode-specific required-field checks (section needs playerPool, captain needs captainIds, etc.)
+- Returns full result with contract-compatible fields PLUS extras (analyzerReport,
+  validationReport, generationTimeMs, log[]) for debugging
+- NO fake success — returns HTTP 500 with code+message if 0 teams generated
+
+KEY DESIGN DECISIONS:
+- DETERMINISTIC, not random: rank rotation + bounded substitution for diversity
+- REAL signals only: selBy, captainPct, vcPct, points, credits, role, team, playing
+- Pre-lineup vs Final-lineup: detected from API, returned in response as lineupStatus
+- Mode isolation: each mode dispatched to its OWN generator, never mixes algorithms
+- No fallback between modes: a smart request never runs grand logic, etc.
+- Filters requiring unavailable data (captain_pace, captain_spin, winning) are
+  SKIPPED with WARN log — never fabricated
+- Bundled Women's T20 dataset kept ONLY as last-resort fallback when backend API
+  fails AND no client playerPool provided
+
+TESTING (all passed):
+- SMART 5 teams: 5/5 valid, 5 unique combos, 5 unique C/VC pairs
+- SMART 20 teams: 20/20 valid, 9 combos (max 3 per combo=15%), 10 unique C, 14 unique VC,
+  19 unique pairs, 14 unique squads, 24ms
+- GRAND 10 teams: 10/10 valid, 10 unique C, 10 unique pairs, 9 unique squads
+- GRAND 40 teams: 40/40 valid, 40/40 UNIQUE SQUADS (perfect diversity),
+  38/40 unique pairs, 27ms, avg ownership 53.2% (lower = more differential)
+- ADVANCED 10 teams (with form+differential+unique_c+unique_vc filters):
+  7/10 valid (3 dropped as DUPLICATE_TEAM due to unique_c/unique_vc constraint
+  with limited unique top players) — honest partial success, not fake
+- SECTION 5 teams (balanced 11-player pool): 5/5 valid, 5 unique C/VC pairs
+- CAPTAIN 6 teams (3 captainIds): 3/6 valid (enforceUniqueC caps at 3 unique captains)
+- VICECAPTAIN 6 teams (3 vcIds): 3/6 valid (enforceUniqueVC caps at 3 unique VCs)
+- COMBINATION 6 teams (2 client combos): 6/6 valid, 3-3 split across the 2 combos
+
+ERROR HANDLING (all return real errors, no fake success):
+- No license → 403 NO_LICENSE
+- Invalid mode → 400 INVALID_MODE
+- Missing matchId → 400
+- teamCount ≤ 0 → 400
+- Captain mode without captainIds → 400 MISSING_CAPTAIN_IDS
+- VC mode without viceCaptainIds → 400 MISSING_VC_IDS
+- Combination mode without combinations → 400 MISSING_COMBINATIONS
+- 0 valid teams after validation → 500 ZERO_TEAMS (with drop reasons)
+- Generator throws → 500 GENERATOR_ERROR (with stack in log)
+
+LOGGING (every step recorded):
+- engine.start (mode, matchId, teamCount, pitchType)
+- research.start / research.complete (source, lineupOut, lineupStatus)
+- lineup.final / lineup.pre (strict XI vs probable squad)
+- analyzer.start / analyzer.complete (byRole, byTeam, byTier, warnings)
+- generator.start (mode-isolated dispatch)
+- {mode}.start / {mode}.combos / {mode}.candidates / {mode}.validation
+- generator.finish / generator.empty (if 0 teams)
+- engine.complete (teams, timeMs, lineupStatus)
+- All logs mirrored to server console (visible in dev.log)
+- All logs included in API response `log[]` array
+
+UI VERIFICATION (agent-browser):
+- Home page: HTTP 200, loads matches
+- /match/113677/smart: HTTP 200, license unlock works, Generate button produces 20 teams
+  with unique captains (Mitchell Marsh, Ryan Rickelton, James Vince, Sam Curran, etc.)
+- /match/113677/grand: HTTP 200, Generate produces 20 teams across all 9 combinations
+  with differential picks (Thomas Lawes, Eddie Jack, Callum Parkinson)
+- All 7 match sub-pages compile (HTTP 200): smart, grand, advanced, captain,
+  vicecaptain, combination, section
+- UI contract preserved — existing pages work UNCHANGED (no UI edits)
+
+CONSTRAINTS RESPECTED:
+- NO changes to UI (all 7 match pages untouched)
+- NO changes to Admin Panel, License System, Neon, Firebase, JWT, Contest Join, Team Transfer
+- NO changes to /api/players, /api/matches, /api/auth, /api/fantasy, /api/admin
+- NO new dependencies added
+- NO test code written
+- Lint: 0 errors
+
+Stage Summary:
+- Team Generation Engine completely rewritten with production quality
+- 7 mode-isolated generators (section/smart/grand/advanced/captain/vicecaptain/combination)
+- Real analysis from API fields (selBy, captainPct, vcPct, points, credits, role, team)
+- Real validators (11 checks) — no fake validation, no fake success
+- Deterministic rank-based selection (no Math.random blind shuffling)
+- Pre-lineup support: uses probable XI when lineup not out, strict XI when out
+- lineupStatus returned in every response ("final" | "pre-lineup" | "unknown")
+- Structured logging at every step (engine log + console mirror + response log[])
+- Combination weights derived from REAL pool composition (not hardcoded)
+- Differential picks rotated across teams for squad diversity
+- C/VC pairs rotated deterministically (unique pairs per team)
+- All 7 modes tested end-to-end via curl + agent-browser UI verification
+- 40/40 unique squads in Grand League 40-team test
+- All error cases return real errors with codes (NO_LICENSE, INVALID_MODE, ZERO_TEAMS, etc.)
+- UI contract preserved — existing pages work unchanged

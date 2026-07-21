@@ -1,0 +1,723 @@
+     1→"use client";
+     2→
+     3→import { useEffect, useState } from "react";
+     4→import { useRouter } from "next/navigation";
+     5→import {
+     6→  Loader2,
+     7→  Rocket,
+     8→  RefreshCw,
+     9→  ChevronRight,
+    10→  Target,
+    11→  Brain,
+    12→  Crown,
+    13→  Medal,
+    14→  Settings2,
+    15→  Package,
+    16→  CheckCircle2,
+    17→  Sparkles,
+    18→  TrendingUp,
+    19→  ShieldCheck,
+    20→  Zap,
+    21→} from "lucide-react";
+    22→import { MatchShell } from "@/components/tg/match-shell";
+    23→import { TeamCard, ComboDistribution, type GenTeam } from "@/components/tg/team-card";
+    24→import { useToast } from "@/hooks/use-toast";
+    25→import { ROLE_LABELS } from "@/lib/players";
+    26→import { storeTeams, getPlayerPool } from "@/lib/teams-storage";
+    27→
+    28→// ====== Rank 1 AI Configuration ======
+    29→
+    30→const GENERATE_MODES = [
+    31→  { id: "rank1", label: "Rank 1 AI", emoji: "⭐", desc: "Recommended", recommended: true },
+    32→  { id: "grand-max", label: "Grand League Max Risk", emoji: "🏆", desc: "High ceiling" },
+    33→  { id: "small-safe", label: "Small League Safe", emoji: "💰", desc: "Safe picks" },
+    34→  { id: "mega-killer", label: "Mega Contest Killer", emoji: "🔥", desc: "Balanced risk" },
+    35→  { id: "differential", label: "Differential Hunter", emoji: "🎲", desc: "Low ownership" },
+    36→  { id: "high-ceiling", label: "High Ceiling Teams", emoji: "⚡", desc: "Max upside" },
+    37→  { id: "consistency", label: "Consistency Mode", emoji: "📈", desc: "Steady picks" },
+    38→  { id: "elite", label: "Elite AI Analysis", emoji: "🤖", desc: "Full AI" },
+    39→];
+    40→
+    41→const AI_STRATEGIES = [
+    42→  { id: "balanced", label: "Balanced", comb: { wk: 1, bat: 4, ar: 3, bowl: 3 } },
+    43→  { id: "aggressive", label: "Aggressive", comb: { wk: 1, bat: 5, ar: 2, bowl: 3 } },
+    44→  { id: "ultra-aggressive", label: "Ultra Aggressive", comb: { wk: 1, bat: 5, ar: 3, bowl: 2 } },
+    45→  { id: "differential-heavy", label: "Differential Heavy", comb: { wk: 1, bat: 4, ar: 3, bowl: 3 } },
+    46→  { id: "low-ownership", label: "Low Ownership", comb: { wk: 1, bat: 4, ar: 3, bowl: 3 } },
+    47→  { id: "high-projection", label: "High Projection", comb: { wk: 1, bat: 4, ar: 3, bowl: 3 } },
+    48→  { id: "safe-diff-mix", label: "Safe + Differential Mix", comb: { wk: 1, bat: 4, ar: 3, bowl: 3 } },
+    49→];
+    50→
+    51→const CAPTAIN_STRATEGIES = [
+    52→  { id: "safe-c", label: "Safe Captain", pick: "safe" },
+    53→  { id: "diff-c", label: "Differential Captain", pick: "differential" },
+    54→  { id: "ultra-diff-c", label: "Ultra Differential", pick: "ultra-diff" },
+    55→  { id: "ai-best-c", label: "AI Best Captain", pick: "ai-best" },
+    56→  { id: "high-ceiling-c", label: "High Ceiling Captain", pick: "high-ceiling" },
+    57→  { id: "bowling-c", label: "Bowling Captain", pick: "bowling" },
+    58→  { id: "ar-c", label: "All-rounder Captain", pick: "ar" },
+    59→];
+    60→
+    61→const VC_STRATEGIES = [
+    62→  { id: "safe-vc", label: "Safe VC", pick: "safe" },
+    63→  { id: "diff-vc", label: "Differential VC", pick: "differential" },
+    64→  { id: "ai-best-vc", label: "AI Best VC", pick: "ai-best" },
+    65→  { id: "bowling-vc", label: "Bowling VC", pick: "bowling" },
+    66→  { id: "finisher-vc", label: "Finisher VC", pick: "finisher" },
+    67→  { id: "high-ceiling-vc", label: "High Ceiling VC", pick: "high-ceiling" },
+    68→];
+    69→
+    70→const AI_INTELLIGENCE = [
+    71→  "Official Playing XI Only",
+    72→  "Toss Impact",
+    73→  "Pitch Analysis",
+    74→  "Weather Analysis",
+    75→  "Dew Impact",
+    76→  "Venue Records",
+    77→  "Head-to-Head",
+    78→  "Recent Form",
+    79→  "Matchup Analysis",
+    80→  "Death Overs",
+    81→  "Powerplay Impact",
+    82→  "Batting Position",
+    83→  "Ownership %",
+    84→  "Risk Score",
+    85→  "Ceiling Score",
+    86→];
+    87→
+    88→const GL_TARGETS = [
+    89→  { id: "rank1", label: "Rank 1 Focus", emoji: "🎯" },
+    90→  { id: "top10", label: "Top 10 Focus", emoji: "🔟" },
+    91→  { id: "top100", label: "Top 100 Focus", emoji: "💯" },
+    92→  { id: "max-unique", label: "Maximum Uniqueness", emoji: "🎲" },
+    93→  { id: "max-ceiling", label: "Maximum Ceiling", emoji: "⚡" },
+    94→  { id: "low-owner", label: "Low Ownership", emoji: "📉" },
+    95→];
+    96→
+    97→const ADVANCED_OPTS = [
+    98→  "Exclude Bench Players",
+    99→  "Lock Playing XI Only",
+   100→  "Auto Replace Offline Players",
+   101→  "Avoid Duplicate Teams",
+   102→  "Unique Captain in Every Team",
+   103→  "Unique Vice Captain in Every Team",
+   104→  "Credit Optimization",
+   105→  "Team Balance Validation",
+   106→];
+   107→
+   108→const TEAM_COUNTS = [1, 5, 10, 20, 40, 100, 250, 500];
+   109→
+   110→const PITCH_TYPES = [
+   111→  { id: "auto", label: "🤖 AI Auto Detect", desc: "Smart pick" },
+   112→  { id: "balanced", label: "⚖️ Balanced Pitch", desc: "Even mix" },
+   113→  { id: "batting", label: "🏏 Batting Friendly", desc: "Extra batters" },
+   114→  { id: "bowling", label: "🎯 Bowling Friendly", desc: "Extra bowlers" },
+   115→  { id: "spin", label: "🌀 Spin Friendly", desc: "Extra AR/spin" },
+   116→];
+   117→
+   118→const ALL_COMBOS = [
+   119→  "1-3-3-4", "1-3-4-3", "1-4-2-4", "1-4-3-3", "1-5-2-3",
+   120→  "1-3-2-5", "2-3-2-4", "2-4-2-3", "2-3-3-3",
+   121→];
+   122→
+   123→// ====== Reusable styled components (dark theme) ======
+   124→
+   125→const cardStyle: React.CSSProperties = {
+   126→  background: "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))",
+   127→  border: "1px solid rgba(255,255,255,0.08)",
+   128→  borderRadius: 16,
+   129→  padding: 16,
+   130→  marginBottom: 12,
+   131→  backdropFilter: "blur(12px)",
+   132→  WebkitBackdropFilter: "blur(12px)",
+   133→};
+   134→
+   135→const sectionTitle: React.CSSProperties = {
+   136→  fontSize: 14,
+   137→  fontWeight: 800,
+   138→  color: "#e8eefc",
+   139→  marginBottom: 10,
+   140→  display: "flex",
+   141→  alignItems: "center",
+   142→  gap: 8,
+   143→};
+   144→
+   145→const pillBtn = (active: boolean): React.CSSProperties => ({
+   146→  padding: "8px 10px",
+   147→  border: active ? "1px solid rgba(52,211,153,0.5)" : "1px solid rgba(255,255,255,0.08)",
+   148→  background: active
+   149→    ? "linear-gradient(135deg, rgba(52,211,153,0.25), rgba(16,185,129,0.15))"
+   150→    : "rgba(255,255,255,0.03)",
+   151→  color: active ? "#34d399" : "#8a94b3",
+   152→  borderRadius: 10,
+   153→  fontSize: 11,
+   154→  fontWeight: 700,
+   155→  cursor: "pointer",
+   156→  textAlign: "center" as const,
+   157→  transition: "all 0.2s ease",
+   158→  display: "flex",
+   159→  alignItems: "center",
+   160→  justifyContent: "center",
+   161→  gap: 4,
+   162→  lineHeight: 1.3,
+   163→});
+   164→
+   165→const chipBtn = (active: boolean): React.CSSProperties => ({
+   166→  padding: "7px 12px",
+   167→  border: active ? "1px solid rgba(52,211,153,0.5)" : "1px solid rgba(255,255,255,0.08)",
+   168→  background: active ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.03)",
+   169→  color: active ? "#34d399" : "#b4bcd6",
+   170→  borderRadius: 999,
+   171→  fontSize: 11,
+   172→  fontWeight: 600,
+   173→  cursor: "pointer",
+   174→  whiteSpace: "nowrap" as const,
+   175→  transition: "all 0.2s ease",
+   176→});
+   177→
+   178→export default function SmartPage({ params }: { params: Promise<{ id: string }> }) {
+   179→  const router = useRouter();
+   180→  const { toast } = useToast();
+   181→  const [matchId, setMatchId] = useState("");
+   182→  const [loading, setLoading] = useState(false);
+   183→  const [teams, setTeams] = useState<GenTeam[]>([]);
+   184→
+   185→  // Selections
+   186→  const [genMode, setGenMode] = useState("rank1");
+   187→  const [aiStrategy, setAiStrategy] = useState("balanced");
+   188→  const [capStrategy, setCapStrategy] = useState("ai-best-c");
+   189→  const [vcStrategy, setVcStrategy] = useState("ai-best-vc");
+   190→  const [intelligence, setIntelligence] = useState<string[]>(["Official Playing XI Only", "Recent Form", "Ownership %"]);
+   191→  const [glTarget, setGlTarget] = useState("rank1");
+   192→  const [advanced, setAdvanced] = useState<string[]>(["Exclude Bench Players", "Lock Playing XI Only", "Avoid Duplicate Teams"]);
+   193→  const [teamCount, setTeamCount] = useState(20);
+   194→  const [pitchType, setPitchType] = useState("auto");
+   195→  const [comboDist, setComboDist] = useState<Record<string, number>>({});
+   196→
+   197→  useEffect(() => {
+   198→    params.then((p) => setMatchId(p.id));
+   199→  }, [params]);
+   200→
+   201→  const toggleIntel = (item: string) => {
+   202→    setIntelligence((s) => (s.includes(item) ? s.filter((x) => x !== item) : [...s, item]));
+   203→  };
+   204→  const toggleAdvanced = (item: string) => {
+   205→    setAdvanced((s) => (s.includes(item) ? s.filter((x) => x !== item) : [...s, item]));
+   206→  };
+   207→
+   208→  // AI Confidence + Winning Potential (simulated based on selections)
+   209→  const aiConfidence = Math.min(98, 60 + intelligence.length * 2 + (genMode === "rank1" ? 10 : 5));
+   210→  const winningPotential = Math.min(95, 55 + (glTarget === "rank1" ? 15 : 10) + advanced.length * 2);
+   211→
+   212→  const generate = async () => {
+   213→    setLoading(true);
+   214→    setTeams([]);
+   215→    setComboDist({});
+   216→    try {
+   217→      const strat = AI_STRATEGIES.find((s) => s.id === aiStrategy) || AI_STRATEGIES[0];
+   218→      const comb = strat.comb;
+   219→      const playerPool = getPlayerPool(matchId);
+   220→
+   221→      const res = await fetch("/api/generate-teams", {
+   222→        method: "POST",
+   223→        headers: { "Content-Type": "application/json" },
+   224→        body: JSON.stringify({
+   225→          matchId,
+   226→          type: "smart",
+   227→          teamCount,
+   228→          combination: comb,
+   229→          playerPool: playerPool.length >= 11 ? playerPool : undefined,
+   230→          diversity: true,
+   231→          pitchType,
+   232→          maxSameComboPercent: 30,
+   233→        }),
+   234→        signal: AbortSignal.timeout(30000),
+   235→      });
+   236→      const data = await res.json();
+   237→      if (data?.teams) {
+   238→        setTeams(data.teams);
+   239→        storeTeams(matchId, "smart", data.teams);
+   240→        if (data.combinationDistribution) {
+   241→          setComboDist(data.combinationDistribution);
+   242→        }
+   243→      } else {
+   244→        // Show error to user instead of spinning forever
+   245→        const errorMsg = data?.message || data?.error || "Generation failed. Please try again.";
+   246→        toast({
+   247→          title: "Generation Failed",
+   248→          description: errorMsg,
+   249→          variant: "destructive",
+   250→        });
+   251→      }
+   252→    } catch (e) {
+   253→      const errorMsg = e instanceof Error ? e.message : "Network error. Please try again.";
+   254→      toast({
+   255→        title: "Generation Error",
+   256→        description: errorMsg.includes("timeout") ? "Request timed out. Please try again." : errorMsg,
+   257→        variant: "destructive",
+   258→      });
+   259→    } finally {
+   260→      setLoading(false);
+   261→    }
+   262→  };
+   263→
+   264→  return (
+   265→    <MatchShell matchId={matchId || "loading"} active="smart">
+   266→      {/* ===== Header ===== */}
+   267→      <div style={cardStyle}>
+   268→        <div style={sectionTitle}>
+   269→          <Sparkles size={16} color="#34d399" />
+   270→          Rank 1 AI Generator
+   271→        </div>
+   272→        <p style={{ fontSize: 12, color: "#8a94b3", marginBottom: 0, lineHeight: 1.5 }}>
+   273→          Premium fantasy team generator with separate controls for AI strategy, captain selection,
+   274→          uniqueness, risk level, and validation.
+   275→        </p>
+   276→      </div>
+   277→
+   278→      {/* ===== 1. Generate Mode ===== */}
+   279→      <div style={cardStyle}>
+   280→        <div style={sectionTitle}>
+   281→          <Target size={15} color="#34d399" /> Generate Mode
+   282→        </div>
+   283→        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+   284→          {GENERATE_MODES.map((m) => (
+   285→            <button
+   286→              key={m.id}
+   287→              onClick={() => setGenMode(m.id)}
+   288→              style={{
+   289→                ...pillBtn(genMode === m.id),
+   290→                flexDirection: "column",
+   291→                gap: 2,
+   292→                padding: "10px 6px",
+   293→                position: "relative",
+   294→              }}
+   295→            >
+   296→              <span style={{ fontSize: 18 }}>{m.emoji}</span>
+   297→              <span style={{ fontSize: 10, fontWeight: 700 }}>{m.label}</span>
+   298→              {m.recommended && genMode === m.id && (
+   299→                <span
+   300→                  style={{
+   301→                    position: "absolute",
+   302→                    top: 4,
+   303→                    right: 4,
+   304→                    fontSize: 8,
+   305→                    background: "#34d399",
+   306→                    color: "#04130d",
+   307→                    padding: "1px 5px",
+   308→                    borderRadius: 4,
+   309→                    fontWeight: 800,
+   310→                  }}
+   311→                >
+   312→                  ✓
+   313→                </span>
+   314→              )}
+   315→            </button>
+   316→          ))}
+   317→        </div>
+   318→      </div>
+   319→
+   320→      {/* ===== 2. AI Strategy ===== */}
+   321→      <div style={cardStyle}>
+   322→        <div style={sectionTitle}>
+   323→          <Brain size={15} color="#06b6d4" /> AI Strategy
+   324→        </div>
+   325→        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+   326→          {AI_STRATEGIES.map((s) => (
+   327→            <button key={s.id} onClick={() => setAiStrategy(s.id)} style={chipBtn(aiStrategy === s.id)}>
+   328→              {s.label}
+   329→            </button>
+   330→          ))}
+   331→        </div>
+   332→      </div>
+   333→
+   334→      {/* ===== 3. Captain Strategy ===== */}
+   335→      <div style={cardStyle}>
+   336→        <div style={sectionTitle}>
+   337→          <Crown size={15} color="#f59e0b" /> Captain Strategy
+   338→        </div>
+   339→        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+   340→          {CAPTAIN_STRATEGIES.map((c) => (
+   341→            <button key={c.id} onClick={() => setCapStrategy(c.id)} style={chipBtn(capStrategy === c.id)}>
+   342→              {c.label}
+   343→            </button>
+   344→          ))}
+   345→        </div>
+   346→      </div>
+   347→
+   348→      {/* ===== 4. Vice Captain Strategy ===== */}
+   349→      <div style={cardStyle}>
+   350→        <div style={sectionTitle}>
+   351→          <Medal size={15} color="#8b5cf6" /> Vice Captain Strategy
+   352→        </div>
+   353→        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+   354→          {VC_STRATEGIES.map((v) => (
+   355→            <button key={v.id} onClick={() => setVcStrategy(v.id)} style={chipBtn(vcStrategy === v.id)}>
+   356→              {v.label}
+   357→            </button>
+   358→          ))}
+   359→        </div>
+   360→      </div>
+   361→
+   362→      {/* ===== 5. AI Intelligence ===== */}
+   363→      <div style={cardStyle}>
+   364→        <div style={sectionTitle}>
+   365→          <Brain size={15} color="#10b981" /> AI Intelligence
+   366→        </div>
+   367→        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+   368→          {AI_INTELLIGENCE.map((item) => (
+   369→            <button key={item} onClick={() => toggleIntel(item)} style={chipBtn(intelligence.includes(item))}>
+   370→              {intelligence.includes(item) ? "✓ " : ""}
+   371→              {item}
+   372→            </button>
+   373→          ))}
+   374→        </div>
+   375→        <div style={{ fontSize: 10, color: "#6c757d", marginTop: 8 }}>
+   376→          {intelligence.length} factors enabled
+   377→        </div>
+   378→      </div>
+   379→
+   380→      {/* ===== 5b. Pitch Analysis (Combination Diversity) ===== */}
+   381→      <div style={cardStyle}>
+   382→        <div style={sectionTitle}>
+   383→          <Brain size={15} color="#06b6d4" /> Pitch Analysis (Combo Diversity)
+   384→        </div>
+   385→        <p style={{ fontSize: 11, color: "#8a94b3", marginBottom: 10, lineHeight: 1.5 }}>
+   386→          AI intelligently selects from <b style={{ color: "#34d399" }}>9 combinations</b> based on pitch.
+   387→          Max <b style={{ color: "#f59e0b" }}>30%</b> of teams use the same combo — rest distributed for diversity.
+   388→        </p>
+   389→        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+   390→          {PITCH_TYPES.map((p) => (
+   391→            <button
+   392→              key={p.id}
+   393→              onClick={() => setPitchType(p.id)}
+   394→              style={{
+   395→                ...pillBtn(pitchType === p.id),
+   396→                flexDirection: "column",
+   397→                gap: 2,
+   398→                padding: "10px 6px",
+   399→              }}
+   400→            >
+   401→              <span style={{ fontSize: 11, fontWeight: 700 }}>{p.label}</span>
+   402→              <span style={{ fontSize: 9, opacity: 0.7 }}>{p.desc}</span>
+   403→            </button>
+   404→          ))}
+   405→        </div>
+   406→        {/* All 9 combinations preview */}
+   407→        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 10 }}>
+   408→          {ALL_COMBOS.map((c) => (
+   409→            <span
+   410→              key={c}
+   411→              style={{
+   412→                fontSize: 9,
+   413→                fontWeight: 700,
+   414→                color: "#8a94b3",
+   415→                background: "rgba(255,255,255,0.03)",
+   416→                border: "1px solid rgba(255,255,255,0.06)",
+   417→                padding: "3px 7px",
+   418→                borderRadius: 5,
+   419→              }}
+   420→            >
+   421→              {c}
+   422→            </span>
+   423→          ))}
+   424→        </div>
+   425→      </div>
+   426→
+   427→      {/* ===== 6. Grand League Target ===== */}
+   428→      <div style={cardStyle}>
+   429→        <div style={sectionTitle}>
+   430→          <Target size={15} color="#f43f5e" /> Grand League Target
+   431→        </div>
+   432→        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+   433→          {GL_TARGETS.map((g) => (
+   434→            <button
+   435→              key={g.id}
+   436→              onClick={() => setGlTarget(g.id)}
+   437→              style={{
+   438→                ...pillBtn(glTarget === g.id),
+   439→                padding: "10px 8px",
+   440→                gap: 4,
+   441→              }}
+   442→            >
+   443→              <span style={{ fontSize: 16 }}>{g.emoji}</span>
+   444→              <span style={{ fontSize: 10, fontWeight: 700 }}>{g.label}</span>
+   445→            </button>
+   446→          ))}
+   447→        </div>
+   448→      </div>
+   449→
+   450→      {/* ===== 7. Advanced ===== */}
+   451→      <div style={cardStyle}>
+   452→        <div style={sectionTitle}>
+   453→          <Settings2 size={15} color="#06b6d4" /> Advanced
+   454→        </div>
+   455→        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+   456→          {ADVANCED_OPTS.map((opt) => (
+   457→            <button
+   458→              key={opt}
+   459→              onClick={() => toggleAdvanced(opt)}
+   460→              style={{
+   461→                display: "flex",
+   462→                alignItems: "center",
+   463→                gap: 8,
+   464→                padding: "8px 10px",
+   465→                border: advanced.includes(opt)
+   466→                  ? "1px solid rgba(52,211,153,0.4)"
+   467→                  : "1px solid rgba(255,255,255,0.06)",
+   468→                background: advanced.includes(opt)
+   469→                  ? "rgba(16,185,129,0.1)"
+   470→                  : "rgba(255,255,255,0.02)",
+   471→                borderRadius: 10,
+   472→                cursor: "pointer",
+   473→                textAlign: "left",
+   474→                transition: "all 0.2s ease",
+   475→              }}
+   476→            >
+   477→              <span
+   478→                style={{
+   479→                  width: 18,
+   480→                  height: 18,
+   481→                  borderRadius: 5,
+   482→                  border: advanced.includes(opt)
+   483→                    ? "1px solid #34d399"
+   484→                    : "1px solid rgba(255,255,255,0.2)",
+   485→                  background: advanced.includes(opt) ? "#34d399" : "transparent",
+   486→                  display: "flex",
+   487→                  alignItems: "center",
+   488→                  justifyContent: "center",
+   489→                  flexShrink: 0,
+   490→                }}
+   491→              >
+   492→                {advanced.includes(opt) && (
+   493→                  <CheckCircle2 size={12} color="#04130d" />
+   494→                )}
+   495→              </span>
+   496→              <span style={{ fontSize: 12, fontWeight: 600, color: advanced.includes(opt) ? "#e8eefc" : "#8a94b3" }}>
+   497→                {opt}
+   498→              </span>
+   499→            </button>
+   500→          ))}
+   501→        </div>
+   502→      </div>
+   503→
+   504→      {/* ===== 8. Team Count ===== */}
+   505→      <div style={cardStyle}>
+   506→        <div style={sectionTitle}>
+   507→          <Package size={15} color="#8b5cf6" /> Team Count
+   508→        </div>
+   509→        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+   510→          {TEAM_COUNTS.map((n) => (
+   511→            <button
+   512→              key={n}
+   513→              onClick={() => setTeamCount(n)}
+   514→              style={{
+   515→                ...pillBtn(teamCount === n),
+   516→                padding: "10px 4px",
+   517→                fontSize: 13,
+   518→                fontWeight: 800,
+   519→              }}
+   520→            >
+   521→              {n}
+   522→            </button>
+   523→          ))}
+   524→        </div>
+   525→        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+   526→          <input
+   527→            type="range"
+   528→            min={1}
+   529→            max={500}
+   530→            value={teamCount}
+   531→            onChange={(e) => setTeamCount(parseInt(e.target.value, 10))}
+   532→            style={{ flex: 1, accentColor: "#34d399" }}
+   533→          />
+   534→          <input
+   535→            type="number"
+   536→            min={1}
+   537→            max={500}
+   538→            value={teamCount}
+   539→            onChange={(e) => setTeamCount(Math.max(1, Math.min(parseInt(e.target.value, 10) || 1, 500)))}
+   540→            style={{
+   541→              width: 60,
+   542→              padding: "6px",
+   543→              background: "rgba(255,255,255,0.05)",
+   544→              border: "1px solid rgba(255,255,255,0.1)",
+   545→              borderRadius: 8,
+   546→              color: "#e8eefc",
+   547→              fontSize: 13,
+   548→              fontWeight: 700,
+   549→              textAlign: "center",
+   550→            }}
+   551→          />
+   552→        </div>
+   553→      </div>
+   554→
+   555→      {/* ===== 9. Final AI Validation ===== */}
+   556→      <div
+   557→        style={{
+   558→          ...cardStyle,
+   559→          borderColor: "rgba(52,211,153,0.25)",
+   560→          background: "linear-gradient(180deg, rgba(16,185,129,0.08), rgba(255,255,255,0.02))",
+   561→        }}
+   562→      >
+   563→        <div style={sectionTitle}>
+   564→          <ShieldCheck size={15} color="#34d399" /> Final AI Validation
+   565→        </div>
+   566→        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+   567→          {[
+   568→            "Playing XI Verified",
+   569→            "Credits Verified",
+   570→            "Team Combination Valid",
+   571→            "C & VC Different",
+   572→            "No Duplicate Team",
+   573→            "Grand League Optimized",
+   574→          ].map((v) => (
+   575→            <div
+   576→              key={v}
+   577→              style={{
+   578→                display: "flex",
+   579→                alignItems: "center",
+   580→                gap: 6,
+   581→                fontSize: 11,
+   582→                color: "#34d399",
+   583→                fontWeight: 600,
+   584→              }}
+   585→            >
+   586→              <CheckCircle2 size={13} /> {v}
+   587→            </div>
+   588→          ))}
+   589→        </div>
+   590→        {/* Scores */}
+   591→        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+   592→          <div
+   593→            style={{
+   594→              flex: 1,
+   595→              background: "rgba(16,185,129,0.1)",
+   596→              border: "1px solid rgba(16,185,129,0.25)",
+   597→              borderRadius: 10,
+   598→              padding: 10,
+   599→              textAlign: "center",
+   600→            }}
+   601→          >
+   602→            <div style={{ fontSize: 22, fontWeight: 800, color: "#34d399" }}>{aiConfidence}%</div>
+   603→            <div style={{ fontSize: 9, color: "#8a94b3", marginTop: 2 }}>AI Confidence</div>
+   604→          </div>
+   605→          <div
+   606→            style={{
+   607→              flex: 1,
+   608→              background: "rgba(139,92,246,0.1)",
+   609→              border: "1px solid rgba(139,92,246,0.25)",
+   610→              borderRadius: 10,
+   611→              padding: 10,
+   612→              textAlign: "center",
+   613→            }}
+   614→          >
+   615→            <div style={{ fontSize: 22, fontWeight: 800, color: "#a78bfa" }}>{winningPotential}%</div>
+   616→            <div style={{ fontSize: 9, color: "#8a94b3", marginTop: 2 }}>Winning Potential</div>
+   617→          </div>
+   618→        </div>
+   619→      </div>
+   620→
+   621→      {/* ===== Generate Button ===== */}
+   622→      <button
+   623→        onClick={generate}
+   624→        disabled={loading}
+   625→        style={{
+   626→          width: "100%",
+   627→          padding: "16px",
+   628→          border: "none",
+   629→          borderRadius: 14,
+   630→          fontSize: 15,
+   631→          fontWeight: 800,
+   632→          color: "#04130d",
+   633→          background: "linear-gradient(135deg, #34d399, #10b981)",
+   634→          cursor: loading ? "wait" : "pointer",
+   635→          opacity: loading ? 0.7 : 1,
+   636→          display: "flex",
+   637→          alignItems: "center",
+   638→          justifyContent: "center",
+   639→          gap: 8,
+   640→          boxShadow: "0 8px 24px rgba(16,185,129,0.35)",
+   641→          marginBottom: 12,
+   642→          transition: "all 0.2s ease",
+   643→        }}
+   644→      >
+   645→        {loading ? (
+   646→          <>
+   647→            <Loader2 size={18} className="animate-spin" /> Generating {teamCount} AI Teams…
+   648→          </>
+   649→        ) : (
+   650→          <>
+   651→            <Rocket size={18} /> Generate Rank 1 AI Teams
+   652→          </>
+   653→        )}
+   654→      </button>
+   655→
+   656→      {/* ===== Generated Teams ===== */}
+   657→      {teams.length > 0 && (
+   658→        <div style={{ marginBottom: 12 }}>
+   659→          <div
+   660→            style={{
+   661→              display: "flex",
+   662→              justifyContent: "space-between",
+   663→              alignItems: "center",
+   664→              marginBottom: 10,
+   665→            }}
+   666→          >
+   667→            <h4 style={{ fontSize: 14, fontWeight: 800, margin: 0, color: "#e8eefc", display: "flex", alignItems: "center", gap: 6 }}>
+   668→              <TrendingUp size={15} color="#34d399" />
+   669→              Generated Teams ({teams.length})
+   670→            </h4>
+   671→            <div style={{ display: "flex", gap: 6 }}>
+   672→              <button
+   673→                onClick={generate}
+   674→                style={{
+   675→                  padding: "6px 10px",
+   676→                  border: "1px solid rgba(255,255,255,0.1)",
+   677→                  background: "rgba(255,255,255,0.04)",
+   678→                  borderRadius: 8,
+   679→                  fontSize: 11,
+   680→                  fontWeight: 600,
+   681→                  color: "#b4bcd6",
+   682→                  cursor: "pointer",
+   683→                  display: "flex",
+   684→                  alignItems: "center",
+   685→                  gap: 4,
+   686→                }}
+   687→              >
+   688→                <RefreshCw size={12} /> Regen
+   689→              </button>
+   690→              <button
+   691→                onClick={() => router.push(`/match/${matchId}/transfer`)}
+   692→                style={{
+   693→                  padding: "6px 12px",
+   694→                  border: "none",
+   695→                  borderRadius: 8,
+   696→                  fontSize: 11,
+   697→                  fontWeight: 700,
+   698→                  color: "#04130d",
+   699→                  background: "linear-gradient(135deg, #34d399, #10b981)",
+   700→                  cursor: "pointer",
+   701→                  display: "flex",
+   702→                  alignItems: "center",
+   703→                  gap: 4,
+   704→                }}
+   705→              >
+   706→                Transfer <ChevronRight size={12} />
+   707→              </button>
+   708→            </div>
+   709→          </div>
+   710→
+   711→          {Object.keys(comboDist).length > 0 && (
+   712→            <ComboDistribution distribution={comboDist} />
+   713→          )}
+   714→
+   715→          {teams.map((t) => (
+   716→            <TeamCard key={t.team_number} team={t} />
+   717→          ))}
+   718→        </div>
+   719→      )}
+   720→    </MatchShell>
+   721→  );
+   722→}
+   723→
