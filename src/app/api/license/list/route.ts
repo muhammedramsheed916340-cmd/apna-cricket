@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getAllLicenses } from "@/lib/license-store";
 import { requireAdmin } from "@/lib/admin/auth";
+import { getAllLicensesFromNeon } from "@/lib/neon-store";
+import { getAllLicenses } from "@/lib/license-store";
 
 export const dynamic = "force-dynamic";
 
@@ -14,45 +15,37 @@ export async function GET(req: Request) {
   const status = url.searchParams.get("status");
   const plan = url.searchParams.get("plan");
 
-  // Get local keys
-  let keys = getAllLicenses();
+  // Primary: Load from Neon PostgreSQL
+  let keys: any[] = [];
 
-  // Also try to fetch from Firestore and merge any missing keys
   try {
-    const { collection, getDocs } = await import("firebase/firestore");
-    const { db } = await import("@/lib/firebase");
-
-    const snap = await getDocs(collection(db, "licenses"));
-    const firestoreKeys = new Map<string, any>();
-
-    snap.forEach((doc) => {
-      const data = doc.data();
-      firestoreKeys.set(doc.id, {
-        key: data.key || doc.id,
-        plan: data.plan || "monthly",
-        status: data.status || "active",
-        deviceFp: data.deviceFp || null,
-        expiresAt: data.expiresAt ? new Date(data.expiresAt).toISOString() : null,
-        usageCount: data.usageCount || 0,
-        lastUsedAt: data.lastUsedAt ? new Date(data.lastUsedAt).toISOString() : null,
-        boundAt: data.boundAt ? new Date(data.boundAt).toISOString() : null,
-        activatedAt: data.activatedAt || null,
-        createdAt: data.createdAt || null,
-        firestoreSynced: true,
-      });
-    });
-
-    console.log("[License List] Local:", keys.length, "Firestore:", firestoreKeys.size);
-
-    // Merge: add Firestore keys that don't exist locally
-    for (const [key, fsKey] of firestoreKeys) {
-      if (!keys.find((k) => k.key === key)) {
-        keys.push(fsKey);
-        console.log("[License List] Added from Firestore:", key);
-      }
-    }
+    keys = await getAllLicensesFromNeon();
+    console.log("[License List] Loaded from Neon:", keys.length, "keys");
   } catch (e) {
-    console.warn("[License List] Firestore read failed, using local only:", e instanceof Error ? e.message : String(e));
+    console.error("[License List] Neon load failed, falling back to local:", e instanceof Error ? e.message : String(e));
+    // Fallback: Load from local store
+    keys = getAllLicenses();
+  }
+
+  // Merge any local-only keys (not yet in Neon)
+  const localKeys = getAllLicenses();
+  const neonKeySet = new Set(keys.map(k => k.key));
+  for (const lk of localKeys) {
+    if (!neonKeySet.has(lk.key)) {
+      keys.push({
+        key: lk.key,
+        plan: lk.plan,
+        status: lk.status,
+        deviceFp: lk.deviceFp,
+        expiresAt: lk.expiresAt,
+        usageCount: lk.usageCount,
+        lastUsedAt: lk.lastUsedAt,
+        boundAt: lk.boundAt,
+        createdAt: lk.createdAt,
+        createdBy: lk.createdBy,
+        updatedAt: lk.updatedAt,
+      });
+    }
   }
 
   if (status) keys = keys.filter((k) => k.status === status);

@@ -1064,5 +1064,18 @@
     "createdAt": "2026-07-21T10:52:30.673Z",
     "createdBy": "admin",
     "updatedAt": "2026-07-21T10:52:30.673Z"
+  },
+  {
+    "key": "RMSMT-ZC86-FY3G-JVZA",
+    "plan": "monthly",
+    "status": "suspended",
+    "deviceFp": null,
+    "expiresAt": "2026-08-20T11:18:52.589Z",
+    "usageCount": 1,
+    "lastUsedAt": "2026-07-21T11:19:18.092Z",
+    "boundAt": null,
+    "createdAt": "2026-07-21T11:18:54.856Z",
+    "createdBy": "admin",
+    "updatedAt": "2026-07-21T11:19:18.220Z"
   }
 ]

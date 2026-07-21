@@ -55,35 +55,32 @@ export async function POST(req: Request) {
     }
 
     // Step 1: Check local store first
-    let license = getLicense(key);
+    let license = getLicense(key) as any;
 
-    // Step 2: If not in local store, check Firestore
+    // Step 2: If not in local store, check Neon PostgreSQL
     if (!license) {
-      console.log("[License Verify] Key not in local store, checking Firestore:", key);
+      console.log("[License Verify] Key not in local store, checking Neon:", key);
       try {
-        const { getLicenseFromFirestore } = await import("@/lib/firestore-collections");
-        const fsLicense = await getLicenseFromFirestore(key);
-        if (fsLicense) {
-          console.log("[License Verify] Found in Firestore:", key);
-          // Add to local store so future lookups are fast
-          const { createLicense } = await import("@/lib/license-store");
+        const { getLicenseFromNeon } = await import("@/lib/neon-store");
+        const neonLicense = await getLicenseFromNeon(key);
+        if (neonLicense) {
+          console.log("[License Verify] Found in Neon:", key);
+          // Add to local store for future fast lookups
           createLicense(
-            fsLicense.key,
-            fsLicense.plan || "monthly",
-            fsLicense.expiresAt ? new Date(fsLicense.expiresAt).toISOString() : new Date(Date.now() + 30 * 86400000).toISOString()
+            neonLicense.key,
+            neonLicense.plan || "monthly",
+            neonLicense.expiresAt ? new Date(neonLicense.expiresAt).toISOString() : new Date(Date.now() + 30 * 86400000).toISOString()
           );
-          // Update with Firestore data
-          const { updateLicense } = await import("@/lib/license-store");
           updateLicense(key, {
-            status: fsLicense.status || "active",
-            deviceFp: fsLicense.deviceFp || null,
-            boundAt: fsLicense.boundAt ? new Date(fsLicense.boundAt).toISOString() : null,
-            usageCount: fsLicense.usageCount || 0,
+            status: neonLicense.status || "active",
+            deviceFp: neonLicense.deviceFp || null,
+            boundAt: neonLicense.boundAt ? new Date(neonLicense.boundAt).toISOString() : null,
+            usageCount: neonLicense.usageCount || 0,
           });
-          license = getLicense(key);
+          license = getLicense(key) as any;
         }
       } catch (e) {
-        console.error("[License Verify] Firestore lookup error:", e instanceof Error ? e.message : String(e));
+        console.error("[License Verify] Neon lookup error:", e instanceof Error ? e.message : String(e));
       }
     }
 

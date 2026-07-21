@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { generateLicenseKey, getPlanExpiry, ADMIN_PASSWORD } from "@/lib/admin/helpers";
-import { createLicense, getLicense, addLog, getAllLicenses } from "@/lib/license-store";
+import { createLicense, getLicense, addLog, getAllLicenses, deleteLicense } from "@/lib/license-store";
+import { createLicenseInNeon, verifyLicenseInNeon, deleteLicenseFromNeon } from "@/lib/neon-store";
 import * as fs from "fs";
 import * as path from "path";
 
 export const dynamic = "force-dynamic";
 
-// Write licenses to JSON file (works on local dev + Vercel build output)
+// Write licenses to JSON file (fallback for cold starts)
 function persistLicenses() {
   try {
     const allKeys = getAllLicenses().map(k => ({
@@ -24,10 +25,9 @@ function persistLicenses() {
     }));
     const filePath = path.join(process.cwd(), "src/lib/licenses.json");
     fs.writeFileSync(filePath, JSON.stringify(allKeys, null, 2));
-    console.log("[License Generate] Local DB saved:", allKeys.length, "keys to", filePath);
     return true;
   } catch (e) {
-    console.error("[License Generate] Local DB save FAILED:", (e as Error).message);
+    console.error("[License Generate] Local JSON save FAILED:", (e as Error).message);
     return false;
   }
 }
@@ -43,107 +43,83 @@ export async function POST(req: Request) {
 
     const keys: string[] = [];
     const failedKeys: string[] = [];
-    const expiry = getPlanExpiry(plan).toISOString();
+    const errors: string[] = [];
+    const expiry = getPlanExpiry(plan);
 
-    // ====== Step 1: Generate keys in local store ======
+    // ====== Step 1: Generate + save to Neon (PRIMARY) ======
     for (let i = 0; i < Math.min(count, 500); i++) {
       let key = generateLicenseKey();
       while (getLicense(key)) {
         key = generateLicenseKey();
       }
-      createLicense(key, plan, expiry);
-      keys.push(key);
-      console.log("[License Generate] Created key:", key, "plan:", plan);
-    }
 
-    // ====== Step 2: Persist to local JSON file (MANDATORY) ======
-    const localSaved = persistLicenses();
-    console.log("[License Generate] Local DB save:", localSaved ? "SUCCESS" : "FAILED");
-
-    if (!localSaved) {
-      // Local save failed → rollback all generated keys
-      const { deleteLicense } = await import("@/lib/license-store");
-      for (const key of keys) {
-        deleteLicense(key);
-      }
-      return NextResponse.json({
-        status: "fail",
-        error: "Local database save failed. Keys not generated.",
-        keys: [],
-        count: 0,
-        localSaved: false,
-        firestoreSaved: 0,
-        failedCount: keys.length,
+      // Save to Neon PostgreSQL
+      const neonResult = await createLicenseInNeon({
+        key,
+        plan,
+        expiresAt: expiry,
+        createdBy: "admin",
       });
-    }
 
-    // ====== Step 3: Save each key to Firestore (MANDATORY) ======
-    // Local save succeeded → now sync to Firestore
-    // If Firestore fails → rollback from local store too
-    const { saveLicenseToFirestore } = await import("@/lib/firestore-collections");
-    const { deleteLicense } = await import("@/lib/license-store");
-
-    const validKeys: string[] = [];
-
-    for (const key of keys) {
-      const license = getLicense(key);
-      if (!license) {
+      if (!neonResult.success) {
+        console.error("[License Generate] Neon save FAILED:", key, "→", neonResult.error);
         failedKeys.push(key);
+        errors.push(`${key}: ${neonResult.error}`);
         continue;
       }
 
-      console.log("[License Generate] Saving to Firestore:", key);
-      const result = await saveLicenseToFirestore({
-        key: license.key,
-        plan: license.plan,
-        status: license.status,
-        deviceFp: license.deviceFp || "",
-        expiresAt: new Date(license.expiresAt || "").getTime() || 0,
-        boundAt: 0,
-        activatedAt: 0,
-        appVersion: "1.0.0",
-      });
-
-      if (result.success) {
-        console.log("[License Generate] Firestore save SUCCESS (verified):", key);
-        validKeys.push(key);
-      } else {
-        console.error("[License Generate] Firestore save FAILED for:", key, "→", result.error);
-        // Rollback: delete from local store + re-persist JSON
-        deleteLicense(key);
+      // ====== Step 2: Read-back verify from Neon ======
+      const verified = await verifyLicenseInNeon(key);
+      if (!verified) {
+        console.error("[License Generate] Neon read-back verify FAILED:", key);
+        // Rollback from Neon
+        await deleteLicenseFromNeon(key);
         failedKeys.push(key);
+        errors.push(`${key}: Read-back verification failed`);
+        continue;
       }
+
+      console.log("[License Generate] Neon save + verify SUCCESS:", key);
+
+      // Also add to local in-memory store (for fast lookups)
+      createLicense(key, plan, expiry.toISOString());
+
+      keys.push(key);
     }
 
-    // Re-persist JSON after any rollbacks
-    if (failedKeys.length > 0) {
-      persistLicenses();
-    }
+    // ====== Step 3: Persist to local JSON (backup) ======
+    const localSaved = persistLicenses();
+    console.log("[License Generate] Local JSON backup:", localSaved ? "OK" : "SKIPPED");
 
-    addLog("admin_action", `Generated ${validKeys.length}/${keys.length} ${plan} keys (Local: ${localSaved}, Firestore: ${validKeys.length}/${keys.length})`, {});
+    // ====== Step 4: Return result ======
+    addLog("admin_action", `Generated ${keys.length}/${count} ${plan} keys (Neon: ${keys.length}, Failed: ${failedKeys.length})`, {});
 
-    // ====== Step 4: Return ONLY successfully saved keys (local + Firestore) ======
-    if (validKeys.length === 0 && keys.length > 0) {
+    if (keys.length === 0 && count > 0) {
       return NextResponse.json({
         status: "fail",
-        error: "Firestore save failed for all keys. Keys rolled back from local DB.",
+        error: errors[0] || "Database insert failed. Check Neon connection.",
         keys: [],
         count: 0,
-        localSaved: false,
-        firestoreSaved: 0,
+        neonSaved: 0,
+        localSaved,
         failedCount: failedKeys.length,
+        errors,
       });
     }
 
     return NextResponse.json({
       status: "success",
-      keys: validKeys,
-      count: validKeys.length,
-      localSaved: true,
-      firestoreSaved: validKeys.length,
+      keys,
+      count: keys.length,
+      neonSaved: keys.length,
+      localSaved,
+      firestoreSaved: 0, // Firestore sync is optional/separate
       failedCount: failedKeys.length,
+      errors: errors.length > 0 ? errors : undefined,
     });
   } catch (e) {
-    return NextResponse.json({ status: "fail", error: (e as Error).message }, { status: 500 });
+    const error = e instanceof Error ? e.message : String(e);
+    console.error("[License Generate] Exception:", error);
+    return NextResponse.json({ status: "fail", error: `Database error: ${error}` }, { status: 500 });
   }
 }
